@@ -1,0 +1,13 @@
+model:
+  api_key: sk-5347472e443346f0a92c62483f0b32bc
+  model: deepseek-chat
+
+file:
+  save_path: /Users/hekaiyu/Desktop/project/python/pdf/file
+  area: RO
+
+ui:
+  port: 5715
+  host: 0.0.0.0
+  debug: True
+  
