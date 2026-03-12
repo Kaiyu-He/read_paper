@@ -34,98 +34,61 @@
         }
 
         .container {
-            max-width: 1560px;
+            max-width: 1240px;
             margin: 0 auto;
-            padding: 1.5rem;
+            padding: 2rem 1.5rem;
         }
 
         header {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border);
             text-align: center;
-            margin-bottom: 1rem;
         }
 
         h1 {
             font-size: 1.75rem;
-            font-weight: 700;
+            font-weight: 600;
+            letter-spacing: -0.02em;
         }
 
-        .topbar {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.75rem;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 1rem;
-            color: var(--text-secondary);
-            font-size: 0.85rem;
-        }
-
-        .lang-switch {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.2rem;
-            border-radius: 999px;
-            background: #eaf2ff;
-            border: 1px solid #d6e6ff;
-            gap: 0.2rem;
-        }
-
-        .lang-switch-option {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 3rem;
-            padding: 0.35rem 0.7rem;
-            border-radius: 999px;
-            color: var(--text-secondary);
-            text-decoration: none;
-            font-size: 0.8rem;
-            font-weight: 700;
-        }
-
-        .lang-switch-option.active {
-            background: var(--accent);
-            color: #fff;
-        }
-
-        .detail-layout {
+        .layout {
             display: grid;
-            grid-template-columns: 280px minmax(0, 1fr) 300px;
-            gap: 1rem;
-            align-items: start;
+            grid-template-columns: 300px minmax(0, 1fr);
+            gap: 1.5rem;
         }
 
-        .column {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 18px;
-            min-height: calc(100vh - 10rem);
-        }
-
-        .column-scroll {
-            max-height: calc(100vh - 10rem);
+        .sidebar {
+            position: sticky;
+            top: 1.5rem;
+            align-self: start;
+            max-height: calc(100vh - 3rem);
             overflow-y: auto;
+            padding-right: 0.25rem;
             scrollbar-width: none;
             -ms-overflow-style: none;
         }
 
-        .column-scroll::-webkit-scrollbar {
+        .sidebar::-webkit-scrollbar {
             display: none;
         }
 
         .panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 18px;
             padding: 1rem;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .panel:last-child {
-            border-bottom: none;
+            margin-bottom: 1rem;
         }
 
         .panel-title {
             font-size: 0.95rem;
             font-weight: 700;
             margin-bottom: 0.8rem;
+        }
+
+        .calendar-header {
+            margin-bottom: 0.9rem;
         }
 
         .calendar-control {
@@ -166,7 +129,7 @@
         .calendar-grid {
             display: grid;
             grid-template-columns: repeat(7, 1fr);
-            gap: 0.35rem;
+            gap: 0.4rem;
         }
 
         .weekday,
@@ -176,239 +139,252 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.8rem;
+            font-size: 0.82rem;
         }
 
         .weekday {
             color: var(--text-secondary);
-            font-weight: 700;
+            font-weight: 600;
         }
 
         .day-cell {
+            border: 1px solid transparent;
             background: #f7f9fc;
             color: #bcc4cd;
         }
 
         .day-cell.empty {
             background: transparent;
+            border-color: transparent;
         }
 
         .day-cell.available {
             background: #eef5ff;
             color: var(--text-primary);
+            border-color: #d6e6ff;
         }
 
         .day-cell.active {
             background: var(--accent);
             color: #fff;
+            border-color: var(--accent);
+            font-weight: 700;
         }
 
         .day-link {
             width: 100%;
             height: 100%;
-            color: inherit;
-            text-decoration: none;
             display: flex;
             align-items: center;
             justify-content: center;
+            color: inherit;
+            text-decoration: none;
+            border-radius: inherit;
+        }
+
+        .day-cell:not(.available) .day-link {
+            pointer-events: none;
+            cursor: default;
         }
 
         .tag-filter-list {
             display: flex;
             flex-wrap: wrap;
-            gap: 0.5rem;
+            gap: 0.6rem;
         }
 
         .tag-filter {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            padding: 0.45rem 0.8rem;
+            padding: 0.5rem 0.85rem;
             border-radius: 999px;
+            border: 1px solid #d6e6ff;
             background: #eef5ff;
             color: var(--text-primary);
             text-decoration: none;
-            font-size: 0.82rem;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
+        }
+
+        .tag-filter:hover {
+            background: var(--bg-hover);
         }
 
         .tag-filter.active {
             background: var(--accent);
+            border-color: var(--accent);
             color: #fff;
         }
 
-        .paper-nav-list {
+        .sidebar-actions {
             display: flex;
-            flex-direction: column;
-            gap: 0.45rem;
+            gap: 0.75rem;
+            margin-top: 1rem;
         }
 
-        .paper-nav-link {
-            display: block;
-            padding: 0.7rem 0.8rem;
-            border-radius: 12px;
+        .toolbar-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.8rem 1rem;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            font-size: 0.9rem;
             text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: var(--bg-card);
             color: var(--text-primary);
-            background: #f8fafc;
-            border: 1px solid transparent;
-            font-size: 0.86rem;
-            line-height: 1.45;
+            flex: 1;
         }
 
-        .paper-nav-link:hover {
+        .toolbar-button:hover {
             background: var(--bg-hover);
-            border-color: #d6e6ff;
         }
 
-        .paper-nav-link.active {
-            background: #eef5ff;
-            border-color: #b6d3ff;
-        }
-
-        .preview-shell {
+        .meta-row {
             display: flex;
-            flex-direction: column;
-            min-height: calc(100vh - 10rem);
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
         }
 
-        .preview-header {
-            padding: 1rem 1.2rem 0.75rem;
-            border-bottom: 1px solid var(--border);
+        .lang-switch {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.2rem;
+            border-radius: 999px;
+            background: #eaf2ff;
+            border: 1px solid #d6e6ff;
+            gap: 0.2rem;
         }
 
-        .preview-title {
-            font-size: 1.1rem;
+        .lang-switch-option {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 3rem;
+            padding: 0.35rem 0.7rem;
+            border-radius: 999px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.8rem;
             font-weight: 700;
-            margin-bottom: 0.6rem;
+            transition: all 0.2s ease;
+        }
+
+        .lang-switch-option.active {
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 2px 6px rgba(9, 105, 218, 0.2);
         }
 
         .tag-list {
             display: flex;
             flex-wrap: wrap;
-            gap: 0.45rem;
+            gap: 0.5rem;
+            margin-top: 0.9rem;
         }
 
         .tag {
             display: inline-flex;
             align-items: center;
-            padding: 0.28rem 0.62rem;
+            padding: 0.3rem 0.65rem;
             border-radius: 999px;
             background: #eaf2ff;
             color: var(--accent);
-            font-size: 0.76rem;
-            font-weight: 700;
-        }
-
-        .preview-frame-wrap {
-            flex: 1;
-            min-height: 68vh;
-            background: #edf2f7;
-        }
-
-        .preview-frame {
-            width: 100%;
-            height: 100%;
-            min-height: 68vh;
-            border: 0;
-            background: #fff;
-        }
-
-        .info-list {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .info-item-label {
             font-size: 0.78rem;
-            font-weight: 700;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            margin-bottom: 0.35rem;
-        }
-
-        .info-item-value {
-            font-size: 0.9rem;
-            word-break: break-word;
-        }
-
-        .info-link {
-            color: var(--accent);
-            text-decoration: none;
-        }
-
-        .info-link:hover {
-            color: var(--accent-hover);
-        }
-
-        .paper-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 1rem;
+            font-weight: 600;
         }
 
         .paper-card {
             background: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 1rem;
+            border-radius: 12px;
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 1rem;
+            transition: border-color 0.2s, background 0.2s;
         }
 
-        .paper-title-link {
-            display: inline-block;
-            text-decoration: none;
+        .paper-card:hover {
+            border-color: var(--accent);
+            background: var(--bg-hover);
+        }
+
+        .paper-title {
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
             color: var(--text-primary);
-            font-size: 1rem;
-            font-weight: 700;
-            margin-bottom: 0.7rem;
-        }
-
-        .paper-title-link:hover {
-            color: var(--accent);
         }
 
         .paper-abstract {
+            font-size: 0.9rem;
             color: var(--text-secondary);
-            font-size: 0.88rem;
+            margin-bottom: 1rem;
             display: -webkit-box;
-            -webkit-line-clamp: 5;
+            -webkit-line-clamp: 4;
             -webkit-box-orient: vertical;
             overflow: hidden;
-            margin-bottom: 0.8rem;
+        }
+
+        .paper-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            color: var(--accent);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .paper-link:hover {
+            color: var(--accent-hover);
+        }
+
+        .paper-link::after {
+            content: "→";
         }
 
         .empty-state {
             text-align: center;
+            padding: 4rem 2rem;
             color: var(--text-secondary);
-            padding: 4rem 1rem;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 18px;
         }
 
-        @media (max-width: 1180px) {
-            .detail-layout {
-                grid-template-columns: 260px minmax(0, 1fr);
-            }
+        .empty-state p {
+            margin-top: 0.5rem;
+        }
 
-            .detail-layout .right-column {
-                grid-column: 1 / -1;
-                min-height: auto;
-            }
+        .content {
+            min-width: 0;
         }
 
         @media (max-width: 900px) {
-            .detail-layout {
+            .layout {
                 grid-template-columns: 1fr;
             }
 
-            .column,
-            .preview-shell {
-                min-height: auto;
+            .sidebar {
+                position: static;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .container {
+                padding: 1.25rem 1rem;
             }
 
-            .column-scroll {
-                max-height: none;
+            .sidebar-actions {
+                flex-direction: column;
+            }
+
+            .toolbar-button {
+                width: 100%;
             }
         }
     </style>
@@ -419,48 +395,49 @@
             <h1>论文预览</h1>
         </header>
 
-        <div class="topbar">
-            <span>当前日期：{{ papers_data.selected_date or "未找到数据" }}</span>
-            <span>当前数量：{{ papers_data.total_num }} 篇</span>
-            <span class="lang-switch" aria-label="language switch">
-                <a class="lang-switch-option {% if papers_data.lang == 'zh' %}active{% endif %}" href="/?date={{ papers_data.selected_date }}{% for tag in papers_data.selected_tags %}&tag={{ tag }}{% endfor %}{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}&month={{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}{% if papers_data.source_path %}&path={{ papers_data.source_path }}{% endif %}{% if papers_data.selected_paper %}&paper={{ papers_data.selected_paper.id }}{% endif %}&lang=zh">中文</a>
-                <a class="lang-switch-option {% if papers_data.lang == 'en' %}active{% endif %}" href="/?date={{ papers_data.selected_date }}{% for tag in papers_data.selected_tags %}&tag={{ tag }}{% endfor %}{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}&month={{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}{% if papers_data.source_path %}&path={{ papers_data.source_path }}{% endif %}{% if papers_data.selected_paper %}&paper={{ papers_data.selected_paper.id }}{% endif %}&lang=en">EN</a>
-            </span>
-            {% if papers_data.active_sidebar_tag %}
-            <span>当前标签：{{ papers_data.active_sidebar_tag }}</span>
-            {% endif %}
-        </div>
-
-        {% if papers_data.selected_paper %}
-        <div class="detail-layout">
-            <aside class="column column-scroll">
+        <div class="layout">
+            <aside class="sidebar">
                 <section class="panel">
                     <div class="panel-title">日期日历</div>
-                    <div class="calendar-control">
-                        {% if papers_data.calendar_data.prev_year_link %}
-                        <a class="calendar-nav" href="{{ papers_data.calendar_data.prev_year_link }}">‹</a>
-                        {% else %}
-                        <span class="calendar-nav disabled">‹</span>
-                        {% endif %}
-                        <span class="calendar-value">{{ papers_data.calendar_data.year }} 年</span>
-                        {% if papers_data.calendar_data.next_year_link %}
-                        <a class="calendar-nav" href="{{ papers_data.calendar_data.next_year_link }}">›</a>
-                        {% else %}
-                        <span class="calendar-nav disabled">›</span>
-                        {% endif %}
-                    </div>
-                    <div class="calendar-control">
-                        {% if papers_data.calendar_data.prev_month_link %}
-                        <a class="calendar-nav" href="{{ papers_data.calendar_data.prev_month_link }}">‹</a>
-                        {% else %}
-                        <span class="calendar-nav disabled">‹</span>
-                        {% endif %}
-                        <span class="calendar-value">{{ papers_data.calendar_data.month }} 月</span>
-                        {% if papers_data.calendar_data.next_month_link %}
-                        <a class="calendar-nav" href="{{ papers_data.calendar_data.next_month_link }}">›</a>
-                        {% else %}
-                        <span class="calendar-nav disabled">›</span>
-                        {% endif %}
+                    <div class="calendar-header">
+                        <div class="calendar-control">
+                            {% if papers_data.calendar_data.prev_year_link %}
+                            <a class="calendar-nav" href="{{ papers_data.calendar_data.prev_year_link }}">‹</a>
+                            {% else %}
+                            <span class="calendar-nav disabled">‹</span>
+                            {% endif %}
+                            <span class="calendar-value">
+                                {% if papers_data.calendar_data.year %}
+                                {{ papers_data.calendar_data.year }} 年
+                                {% else %}
+                                年份
+                                {% endif %}
+                            </span>
+                            {% if papers_data.calendar_data.next_year_link %}
+                            <a class="calendar-nav" href="{{ papers_data.calendar_data.next_year_link }}">›</a>
+                            {% else %}
+                            <span class="calendar-nav disabled">›</span>
+                            {% endif %}
+                        </div>
+                        <div class="calendar-control">
+                            {% if papers_data.calendar_data.prev_month_link %}
+                            <a class="calendar-nav" href="{{ papers_data.calendar_data.prev_month_link }}">‹</a>
+                            {% else %}
+                            <span class="calendar-nav disabled">‹</span>
+                            {% endif %}
+                            <span class="calendar-value">
+                                {% if papers_data.calendar_data.month %}
+                                {{ papers_data.calendar_data.month }} 月
+                                {% else %}
+                                月份
+                                {% endif %}
+                            </span>
+                            {% if papers_data.calendar_data.next_month_link %}
+                            <a class="calendar-nav" href="{{ papers_data.calendar_data.next_month_link }}">›</a>
+                            {% else %}
+                            <span class="calendar-nav disabled">›</span>
+                            {% endif %}
+                        </div>
                     </div>
                     <div class="calendar-grid">
                         <div class="weekday">一</div>
@@ -474,7 +451,12 @@
                         {% for item in week %}
                         {% if item %}
                         <div class="day-cell {% if item.available %}available{% endif %} {% if item.active %}active{% endif %}">
-                            <a class="day-link" href="{% if item.available %}{{ item.link }}{% else %}#{% endif %}">{{ item.day }}</a>
+                            <a
+                                class="day-link"
+                                href="{% if item.available %}{{ item.link }}{% else %}#{% endif %}"
+                            >
+                                {{ item.day }}
+                            </a>
                         </div>
                         {% else %}
                         <div class="day-cell empty"></div>
@@ -488,93 +470,78 @@
                     <div class="panel-title">标签筛选</div>
                     <div class="tag-filter-list">
                         {% for item in papers_data.tag_filters %}
-                        <a class="tag-filter {% if item.active %}active{% endif %}" href="{{ item.href }}">{{ item.name }}</a>
+                        <a
+                            class="tag-filter {% if item.active %}active{% endif %}"
+                            href="{{ item.href }}"
+                        >
+                            {{ item.name }}
+                        </a>
                         {% endfor %}
                     </div>
-                </section>
-
-                <section class="panel">
-                    <div class="panel-title">
-                        {% if papers_data.active_sidebar_tag %}
-                        {{ papers_data.active_sidebar_tag }} 相关论文
-                        {% else %}
-                        当前论文列表
-                        {% endif %}
-                    </div>
-                    <div class="paper-nav-list">
-                        {% for item in papers_data.related_papers %}
-                        <a class="paper-nav-link {% if item.active %}active{% endif %}" href="{{ item.href }}">{{ item.title }}</a>
-                        {% endfor %}
+                    <div class="sidebar-actions">
+                        <a class="toolbar-button" href="/?lang={{ papers_data.lang }}">回到默认</a>
                     </div>
                 </section>
             </aside>
 
-            <main class="column preview-shell">
-                <div class="preview-header">
-                    <div class="preview-title">{{ papers_data.selected_paper.title }}</div>
-                    {% if papers_data.selected_paper.topics %}
-                    <div class="tag-list">
-                        {% for tag in papers_data.selected_paper.topics %}
-                        <span class="tag">{{ tag }}</span>
-                        {% endfor %}
-                    </div>
+            <main class="content">
+                <div class="meta-row">
+                    <span>当前日期：{{ papers_data.selected_date or "未找到数据" }}</span>
+                    <span>当前数量：{{ papers_data.total_num }} 篇</span>
+                    <span class="lang-switch" aria-label="language switch">
+                        <a
+                            class="lang-switch-option {% if papers_data.lang == 'zh' %}active{% endif %}"
+                            href="/?date={{ papers_data.selected_date }}{% for tag in papers_data.selected_tags %}&tag={{ tag }}{% endfor %}{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}&month={{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}{% if papers_data.source_path %}&path={{ papers_data.source_path }}{% endif %}&lang=zh"
+                        >
+                            中文
+                        </a>
+                        <a
+                            class="lang-switch-option {% if papers_data.lang == 'en' %}active{% endif %}"
+                            href="/?date={{ papers_data.selected_date }}{% for tag in papers_data.selected_tags %}&tag={{ tag }}{% endfor %}{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}&month={{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}{% if papers_data.source_path %}&path={{ papers_data.source_path }}{% endif %}&lang=en"
+                        >
+                            EN
+                        </a>
+                    </span>
+                    {% if papers_data.selected_tags %}
+                    <span>已筛选标签：{{ papers_data.selected_tags | join("、") }}</span>
                     {% endif %}
                 </div>
-                <div class="preview-frame-wrap">
-                    <iframe class="preview-frame" src="{{ papers_data.selected_paper.url }}"></iframe>
-                </div>
-            </main>
 
-            <aside class="column column-scroll right-column">
-                <section class="panel">
-                    <div class="panel-title">论文信息</div>
-                    <div class="info-list">
-                        <div>
-                            <div class="info-item-label">Title</div>
-                            <div class="info-item-value">{{ papers_data.selected_paper.title }}</div>
+                {% if papers_data.papers %}
+                    {% for paper in papers_data.papers %}
+                    <article class="paper-card">
+                        <h2 class="paper-title">
+                            {% if papers_data.lang == "en" %}
+                            {{ paper.title }}
+                            {% else %}
+                            {{ paper.title_zh or paper.title }}
+                            {% endif %}
+                        </h2>
+                        <p class="paper-abstract">
+                            {% if papers_data.lang == "en" %}
+                            {{ paper.abstract }}
+                            {% else %}
+                            {{ paper.abstract_zh or paper.abstract }}
+                            {% endif %}
+                        </p>
+                        {% if paper.topics_zh %}
+                        <div class="tag-list">
+                            {% for tag in paper.topics_zh %}
+                            <span class="tag">{{ tag }}</span>
+                            {% endfor %}
                         </div>
-                        <div>
-                            <div class="info-item-label">Abstract</div>
-                            <div class="info-item-value">{{ papers_data.selected_paper.abstract }}</div>
-                        </div>
-                        <div>
-                            <div class="info-item-label">arXiv</div>
-                            <div class="info-item-value">
-                                <a class="info-link" href="{{ papers_data.selected_paper.abs_url }}" target="_blank" rel="noopener">{{ papers_data.selected_paper.abs_url }}</a>
-                            </div>
-                        </div>
-                        <div>
-                            <div class="info-item-label">PDF</div>
-                            <div class="info-item-value">
-                                <a class="info-link" href="{{ papers_data.selected_paper.url }}" target="_blank" rel="noopener">{{ papers_data.selected_paper.url }}</a>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-            </aside>
-        </div>
-        {% elif papers_data.papers %}
-        <div class="paper-grid">
-            {% for paper in papers_data.papers %}
-            <article class="paper-card">
-                <a class="paper-title-link" href="{{ paper.detail_href }}">{{ paper.display_title }}</a>
-                <p class="paper-abstract">{{ paper.display_abstract }}</p>
-                {% if paper.topics_zh %}
-                <div class="tag-list">
-                    {% for tag in paper.topics_zh %}
-                    <span class="tag">{{ tag }}</span>
+                        {% endif %}
+                        <a href="{{ paper.url }}" target="_blank" rel="noopener" class="paper-link">{{ paper.url }}</a>
+                    </article>
                     {% endfor %}
-                </div>
+                {% else %}
+                    <div class="empty-state">
+                        <p>暂无论文数据</p>
+                        <p>请先运行 load_papers.py 下载论文，或通过 ?path= 指定 papers.json / papers_zh.json 路径</p>
+                    </div>
                 {% endif %}
-            </article>
-            {% endfor %}
+            </main>
         </div>
-        {% else %}
-        <div class="empty-state">
-            <p>暂无论文数据</p>
-            <p>请先运行 `load_papers.py` 下载论文，或通过 `?path=` 指定数据路径</p>
-        </div>
-        {% endif %}
     </div>
 </body>
 </html>

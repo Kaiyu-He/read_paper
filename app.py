@@ -24,29 +24,7 @@ def date_label_from_parts(year: str, month: str, day: str) -> str:
     return f"{int(year):04d}-{int(month):02d}-{int(day):02d}"
 
 
-def get_paper_id(paper: dict) -> str:
-    return paper.get("url", "")
-
-
-def get_paper_display_title(paper: dict, lang: str) -> str:
-    if lang == "en":
-        return paper.get("title", "")
-    return paper.get("title_zh") or paper.get("title", "")
-
-
-def get_paper_display_abstract(paper: dict, lang: str) -> str:
-    if lang == "en":
-        return paper.get("abstract", "")
-    return paper.get("abstract_zh") or paper.get("abstract", "")
-
-
-def get_arxiv_abs_url(pdf_url: str) -> str:
-    if "/pdf/" in pdf_url:
-        return pdf_url.replace("/pdf/", "/abs/")
-    return pdf_url
-
-
-def build_query_string(date=None, tags=None, view_month=None, path=None, lang=None, paper=None):
+def build_query_string(date=None, tags=None, view_month=None, path=None, lang=None):
     params = []
     if date:
         params.append(("date", date))
@@ -59,13 +37,11 @@ def build_query_string(date=None, tags=None, view_month=None, path=None, lang=No
         params.append(("path", path))
     if lang:
         params.append(("lang", lang))
-    if paper:
-        params.append(("paper", paper))
     query = urlencode(params, doseq=True)
     return f"/?{query}" if query else "/"
 
 
-def build_tag_filter_data(all_tags, selected_tags, selected_date, source_path, view_month, lang, selected_paper=None):
+def build_tag_filter_data(all_tags, selected_tags, selected_date, source_path, view_month, lang):
     filters = [
         {
             "name": "全部",
@@ -75,7 +51,6 @@ def build_tag_filter_data(all_tags, selected_tags, selected_date, source_path, v
                 view_month=view_month,
                 path=source_path,
                 lang=lang,
-                paper=selected_paper,
             ),
         }
     ]
@@ -93,24 +68,17 @@ def build_tag_filter_data(all_tags, selected_tags, selected_date, source_path, v
                     view_month=view_month,
                     path=source_path,
                     lang=lang,
-                    paper=selected_paper,
                 ),
             }
         )
     return filters
 
 
-def build_calendar_data(
-    date_values,
-    selected_date,
-    selected_tags=None,
-    source_path=None,
-    view_month=None,
-    lang="zh",
-    selected_paper=None,
-):
+def build_calendar_data(date_values, selected_date, selected_tags=None, source_path=None, view_month=None, lang="zh"):
+    """根据可用日期构造月视图日历。"""
     if not date_values:
         return {
+            "title": "",
             "weeks": [],
             "prev_year_link": None,
             "next_year_link": None,
@@ -158,7 +126,6 @@ def build_calendar_data(
                     view_month=month_key,
                     path=source_path,
                     lang=lang,
-                    paper=selected_paper,
                 ),
             }
         )
@@ -180,31 +147,27 @@ def build_calendar_data(
 
     if year_index > 0:
         prev_year = available_years[year_index - 1]
-        prev_month = min(
-            month,
-            max(int(key.split("-")[1]) for key in month_keys if key.startswith(f"{prev_year:04d}-")),
-        )
+        target_month = min(month, max(
+            int(key.split("-")[1]) for key in month_keys if key.startswith(f"{prev_year:04d}-")
+        ))
         prev_year_link = build_query_string(
             date=active_date,
             tags=selected_tags,
-            view_month=f"{prev_year:04d}-{prev_month:02d}",
+            view_month=f"{prev_year:04d}-{target_month:02d}",
             path=source_path,
             lang=lang,
-            paper=selected_paper,
         )
     if 0 <= year_index < len(available_years) - 1:
         next_year = available_years[year_index + 1]
-        next_month = min(
-            month,
-            max(int(key.split("-")[1]) for key in month_keys if key.startswith(f"{next_year:04d}-")),
-        )
+        target_month = min(month, max(
+            int(key.split("-")[1]) for key in month_keys if key.startswith(f"{next_year:04d}-")
+        ))
         next_year_link = build_query_string(
             date=active_date,
             tags=selected_tags,
-            view_month=f"{next_year:04d}-{next_month:02d}",
+            view_month=f"{next_year:04d}-{target_month:02d}",
             path=source_path,
             lang=lang,
-            paper=selected_paper,
         )
     if month_index > 0:
         prev_month = available_months_in_year[month_index - 1]
@@ -214,7 +177,6 @@ def build_calendar_data(
             view_month=f"{year:04d}-{prev_month:02d}",
             path=source_path,
             lang=lang,
-            paper=selected_paper,
         )
     if 0 <= month_index < len(available_months_in_year) - 1:
         next_month = available_months_in_year[month_index + 1]
@@ -224,10 +186,10 @@ def build_calendar_data(
             view_month=f"{year:04d}-{next_month:02d}",
             path=source_path,
             lang=lang,
-            paper=selected_paper,
         )
 
     return {
+        "title": f"{year} 年 {month} 月",
         "weeks": weeks,
         "prev_year_link": prev_year_link,
         "next_year_link": next_year_link,
@@ -239,6 +201,7 @@ def build_calendar_data(
 
 
 def list_available_dates():
+    """列出存在 papers.json 或 papers_zh.json 的日期目录。"""
     file_dir = get_file_dir()
     if not file_dir.exists():
         return []
@@ -256,18 +219,24 @@ def list_available_dates():
                 has_data = (day_dir / "papers_zh.json").exists() or (day_dir / "papers.json").exists()
                 if has_data:
                     available_dates.append(
-                        {"value": date_label_from_parts(year_dir.name, month_dir.name, day_dir.name), "dir": day_dir}
+                        {
+                            "value": date_label_from_parts(year_dir.name, month_dir.name, day_dir.name),
+                            "dir": day_dir,
+                        }
                     )
+
     return sorted(available_dates, key=lambda item: item["value"], reverse=True)
 
 
 def find_papers_path(selected_date=None):
+    """优先查找指定日期的数据，其次查找今天，最后回退到最新日期。"""
     available_dates = list_available_dates()
     if not available_dates:
         return None, available_dates, None
 
     target_dir = None
     target_value = selected_date
+
     if selected_date:
         for item in available_dates:
             if item["value"] == selected_date:
@@ -295,56 +264,8 @@ def find_papers_path(selected_date=None):
     return None, available_dates, target_value
 
 
-def build_paper_detail_data(papers, selected_paper_id, selected_tags, selected_date, source_path, view_month, lang):
-    if not selected_paper_id:
-        return None, [], None
-
-    selected_paper = None
-    for paper in papers:
-        if get_paper_id(paper) == selected_paper_id:
-            selected_paper = paper
-            break
-    if not selected_paper:
-        return None, [], None
-
-    active_tag = selected_tags[0] if selected_tags else None
-    if not active_tag:
-        topics = [tag for tag in selected_paper.get("topics_zh", []) if isinstance(tag, str) and tag.strip()]
-        active_tag = topics[0] if topics else None
-
-    related_source = papers
-    if active_tag:
-        related_source = [paper for paper in papers if active_tag in paper.get("topics_zh", [])]
-
-    related_papers = [
-        {
-            "id": get_paper_id(paper),
-            "title": get_paper_display_title(paper, lang),
-            "active": get_paper_id(paper) == get_paper_id(selected_paper),
-            "href": build_query_string(
-                date=selected_date,
-                tags=selected_tags,
-                view_month=view_month,
-                path=source_path,
-                lang=lang,
-                paper=get_paper_id(paper),
-            ),
-        }
-        for paper in related_source
-    ]
-
-    detail = {
-        "id": get_paper_id(selected_paper),
-        "title": get_paper_display_title(selected_paper, lang),
-        "abstract": get_paper_display_abstract(selected_paper, lang),
-        "url": selected_paper.get("url", ""),
-        "abs_url": get_arxiv_abs_url(selected_paper.get("url", "")),
-        "topics": [tag for tag in selected_paper.get("topics_zh", []) if isinstance(tag, str) and tag.strip()],
-    }
-    return detail, related_papers, active_tag
-
-
-def load_papers(path=None, selected_date=None, selected_tags=None, view_month=None, lang="zh", selected_paper_id=None):
+def load_papers(path=None, selected_date=None, selected_tags=None, view_month=None, lang="zh"):
+    """加载论文数据，并提供日期/标签筛选所需元数据。"""
     available_dates = list_available_dates()
     resolved_date = selected_date
     selected_tags = [tag for tag in (selected_tags or []) if tag]
@@ -367,16 +288,13 @@ def load_papers(path=None, selected_date=None, selected_tags=None, view_month=No
             source_path=str(json_path) if path else "",
             view_month=view_month,
             lang=lang,
-            selected_paper=selected_paper_id,
         ),
         "selected_tags": selected_tags,
         "tag_filters": [],
         "lang": lang,
-        "selected_paper": None,
-        "related_papers": [],
-        "active_sidebar_tag": None,
         "source_path": str(json_path) if path else "",
     }
+
     if not json_path or not json_path.exists():
         return empty_result
 
@@ -386,48 +304,25 @@ def load_papers(path=None, selected_date=None, selected_tags=None, view_month=No
     except (json.JSONDecodeError, IOError):
         return empty_result
 
-    original_papers = data.get("papers", [])
+    papers = data.get("papers", [])
     all_tags = sorted(
         {
             tag.strip()
-            for paper in original_papers
+            for paper in papers
             for tag in paper.get("topics_zh", [])
             if isinstance(tag, str) and tag.strip()
         }
     )
 
-    papers = original_papers
     if selected_tags:
-        papers = [paper for paper in papers if any(tag in paper.get("topics_zh", []) for tag in selected_tags)]
-
-    detail, related_papers, active_sidebar_tag = build_paper_detail_data(
-        papers,
-        selected_paper_id,
-        selected_tags,
-        resolved_date,
-        str(json_path),
-        view_month or (resolved_date[:7] if resolved_date else None),
-        lang,
-    )
+        papers = [
+            paper for paper in papers
+            if any(tag in paper.get("topics_zh", []) for tag in selected_tags)
+        ]
 
     return {
         "total_num": len(papers),
-        "papers": [
-            {
-                **paper,
-                "display_title": get_paper_display_title(paper, lang),
-                "display_abstract": get_paper_display_abstract(paper, lang),
-                "detail_href": build_query_string(
-                    date=resolved_date,
-                    tags=selected_tags,
-                    view_month=view_month or (resolved_date[:7] if resolved_date else None),
-                    path=str(json_path),
-                    lang=lang,
-                    paper=get_paper_id(paper),
-                ),
-            }
-            for paper in papers
-        ],
+        "papers": papers,
         "all_tags": all_tags,
         "selected_date": resolved_date,
         "available_dates": [item["value"] for item in available_dates],
@@ -438,7 +333,6 @@ def load_papers(path=None, selected_date=None, selected_tags=None, view_month=No
             source_path=str(json_path),
             view_month=view_month,
             lang=lang,
-            selected_paper=detail["id"] if detail else None,
         ),
         "selected_tags": selected_tags,
         "tag_filters": build_tag_filter_data(
@@ -448,18 +342,15 @@ def load_papers(path=None, selected_date=None, selected_tags=None, view_month=No
             str(json_path),
             view_month or (resolved_date[:7] if resolved_date else None),
             lang,
-            detail["id"] if detail else None,
         ),
         "lang": lang,
-        "selected_paper": detail,
-        "related_papers": related_papers,
-        "active_sidebar_tag": active_sidebar_tag,
         "source_path": str(json_path),
     }
 
 
 @app.route("/")
 def index():
+    """主页：论文列表"""
     path = request.args.get("path")
     selected_date = request.args.get("date")
     selected_tags = request.args.getlist("tag")
@@ -469,17 +360,14 @@ def index():
             selected_tags = [item for item in single_tag.split(",") if item]
     view_month = request.args.get("month")
     lang = request.args.get("lang", "zh")
-    selected_paper_id = request.args.get("paper")
     if lang not in {"zh", "en"}:
         lang = "zh"
-
     papers_data = load_papers(
         path=path,
         selected_date=selected_date,
         selected_tags=selected_tags,
         view_month=view_month,
         lang=lang,
-        selected_paper_id=selected_paper_id,
     )
     return render_template("index.html", papers_data=papers_data)
 
