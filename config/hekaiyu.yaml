@@ -10,4 +10,6 @@ ui:
   port: 5715
   host: 0.0.0.0
   debug: True
-  
+
+summary:
+  user_question: 灵巧手和夹爪领域有什么样的发展（在数据采集、数据处理和模型等方面）

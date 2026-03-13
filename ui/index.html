@@ -17,6 +17,7 @@
             --accent: #0969da;
             --accent-hover: #0550ae;
             --border: #d0d7de;
+            --paper-card-height: 14rem;
         }
 
         * {
@@ -43,6 +44,7 @@
             margin-bottom: 1.5rem;
             padding-bottom: 1.5rem;
             border-bottom: 1px solid var(--border);
+            position: relative;
             text-align: center;
         }
 
@@ -50,6 +52,32 @@
             font-size: 1.75rem;
             font-weight: 600;
             letter-spacing: -0.02em;
+        }
+
+        .balance-chip {
+            position: absolute;
+            top: 0;
+            right: 0;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.55rem 0.8rem;
+            border-radius: 999px;
+            border: 1px solid #d6e6ff;
+            background: #eef5ff;
+            color: var(--text-primary);
+            font-size: 0.82rem;
+            line-height: 1;
+        }
+
+        .balance-chip-label {
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .balance-chip-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 500;
         }
 
         .layout {
@@ -315,6 +343,7 @@
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 12px;
+            min-height: var(--paper-card-height);
             padding: 1.25rem 1.5rem;
             margin-bottom: 1rem;
             transition: border-color 0.2s, background 0.2s;
@@ -376,6 +405,194 @@
             color: inherit;
         }
 
+        .summary-panel {
+            margin-bottom: 1.25rem;
+            padding: 1.15rem 1.25rem;
+            border-radius: 18px;
+            border: 1px solid #d6e6ff;
+            background: linear-gradient(180deg, #fbfdff 0%, #f2f7ff 100%);
+        }
+
+        .summary-panel-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            margin-bottom: 0.85rem;
+        }
+
+        .summary-title {
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        .summary-header-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.55rem;
+            flex-wrap: wrap;
+        }
+
+        .summary-meta {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        .summary-status {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.3rem 0.65rem;
+            border-radius: 999px;
+            font-size: 0.76rem;
+            font-weight: 700;
+            border: 1px solid #d6e6ff;
+            background: #eef5ff;
+            color: #0b4ea2;
+        }
+
+        .summary-status.stale {
+            border-color: #f0d3a0;
+            background: #fff6e6;
+            color: #9a5b00;
+        }
+
+        .summary-status.running {
+            border-color: #b8d8ff;
+            background: #e8f2ff;
+            color: #0550ae;
+        }
+
+        .summary-generate-form {
+            margin: 0;
+        }
+
+        .summary-generate-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.45rem 0.85rem;
+            border-radius: 10px;
+            border: 1px solid #b6d3ff;
+            background: #0969da;
+            color: #fff;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .summary-generate-button:hover {
+            background: #0550ae;
+            border-color: #0550ae;
+        }
+
+        .summary-generate-button:disabled {
+            cursor: not-allowed;
+            background: #c8d7ea;
+            border-color: #c8d7ea;
+            color: #f8fbff;
+        }
+
+        .summary-question {
+            margin-bottom: 0.9rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .summary-content {
+            max-height: calc(var(--paper-card-height) * 2);
+            overflow-y: auto;
+            padding: 0.9rem 1rem;
+            border-radius: 14px;
+            border: 1px solid #dce9fb;
+            background: rgba(255, 255, 255, 0.72);
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-size: 0.92rem;
+            line-height: 1.75;
+            color: var(--text-primary);
+            scrollbar-width: thin;
+            scrollbar-color: #b7cceb #eef5ff;
+        }
+
+        .summary-content h2,
+        .summary-content h3,
+        .summary-content h4 {
+            margin: 0.9rem 0;
+            color: var(--text-primary);
+            line-height: 1.4;
+        }
+
+        .summary-content .summary-heading {
+            margin-bottom: 1.1rem;
+        }
+
+        .summary-content h2 {
+            font-size: 1.05rem;
+        }
+
+        .summary-content h3 {
+            font-size: 0.98rem;
+        }
+
+        .summary-content h4 {
+            font-size: 0.92rem;
+        }
+
+        .summary-content p {
+            margin: 0;
+        }
+
+        .summary-content ul,
+        .summary-content ol {
+            margin: 0;
+            padding-left: 1.25rem;
+        }
+
+        .summary-content li {
+            margin-bottom: 0;
+        }
+
+        .summary-content li.indent-1 {
+            margin-left: 1rem;
+        }
+
+        .summary-content li.indent-2 {
+            margin-left: 2rem;
+        }
+
+        .summary-content li.indent-3 {
+            margin-left: 3rem;
+        }
+
+        .summary-content strong {
+            color: #0b4ea2;
+            font-weight: 700;
+        }
+
+        .summary-content code {
+            padding: 0.08rem 0.38rem;
+            border-radius: 6px;
+            background: #eaf2ff;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.84em;
+        }
+
+        .summary-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .summary-content::-webkit-scrollbar-track {
+            background: #eef5ff;
+            border-radius: 999px;
+        }
+
+        .summary-content::-webkit-scrollbar-thumb {
+            background: #b7cceb;
+            border-radius: 999px;
+        }
+
         @media (max-width: 900px) {
             .layout {
                 grid-template-columns: 1fr;
@@ -399,6 +616,11 @@
             .toolbar-button {
                 width: 100%;
             }
+
+            .balance-chip {
+                position: static;
+                margin: 0.75rem auto 0;
+            }
         }
     </style>
 </head>
@@ -406,6 +628,10 @@
     <div class="container">
         <header>
             <h1>论文预览</h1>
+            <div class="balance-chip">
+                <span class="balance-chip-label">API 余额</span>
+                <span class="balance-chip-value">{{ papers_data.api_balance if papers_data.api_balance is not none else "N/A" }}</span>
+            </div>
         </header>
 
         <div class="layout">
@@ -518,6 +744,55 @@
                     <span>已筛选标签：{{ papers_data.selected_tags | join("、") }}</span>
                     {% endif %}
                 </div>
+
+                <section class="summary-panel">
+                    <div class="summary-panel-header">
+                        <div class="summary-title">今日论文总结</div>
+                        <div class="summary-header-actions">
+                            {% if papers_data.summary_status.is_generating %}
+                            <span class="summary-status running">正在生成</span>
+                            <form class="summary-generate-form" method="post" action="/generate-summary">
+                                <input type="hidden" name="date" value="{{ papers_data.selected_date or '' }}">
+                                <input type="hidden" name="month" value="{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}{{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}">
+                                <input type="hidden" name="path" value="{{ papers_data.source_path or '' }}">
+                                <input type="hidden" name="lang" value="{{ papers_data.lang }}">
+                                {% for tag in papers_data.selected_tags %}
+                                <input type="hidden" name="tag" value="{{ tag }}">
+                                {% endfor %}
+                                <button class="summary-generate-button" type="submit" disabled>正在生成</button>
+                            </form>
+                            {% elif papers_data.summary_status.needs_generation %}
+                            <form class="summary-generate-form" method="post" action="/generate-summary">
+                                <input type="hidden" name="date" value="{{ papers_data.selected_date or '' }}">
+                                <input type="hidden" name="month" value="{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}{{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}">
+                                <input type="hidden" name="path" value="{{ papers_data.source_path or '' }}">
+                                <input type="hidden" name="lang" value="{{ papers_data.lang }}">
+                                {% for tag in papers_data.selected_tags %}
+                                <input type="hidden" name="tag" value="{{ tag }}">
+                                {% endfor %}
+                                <button class="summary-generate-button" type="submit">生成总结</button>
+                            </form>
+                            {% else %}
+                            <span class="summary-status {% if papers_data.summary_status.needs_generation %}stale{% endif %}">
+                                {{ papers_data.summary_status.reason }}
+                            </span>
+                            {% endif %}
+                            {% if papers_data.summary_response and papers_data.summary_response.generated_at %}
+                            <div class="summary-meta">{{ papers_data.summary_response.generated_at }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if papers_data.summary_question %}
+                    <div class="summary-question">关注问题：{{ papers_data.summary_question }}</div>
+                    {% endif %}
+                    {% if papers_data.summary_status.is_generating and not (papers_data.summary_response and papers_data.summary_status.has_response) %}
+                    <div class="summary-content">正在生成今日总结，请稍候刷新页面查看结果。</div>
+                    {% elif papers_data.summary_response and papers_data.summary_status.has_response %}
+                    <div class="summary-content">{{ papers_data.summary_response.response_html | safe }}</div>
+                    {% else %}
+                    <div class="summary-content">当前还没有可展示的总结内容。点击右侧按钮后，会基于当前配置中的关注问题生成 `summary_response.json`。</div>
+                    {% endif %}
+                </section>
 
                 {% if papers_data.papers %}
                     {% for paper in papers_data.papers %}

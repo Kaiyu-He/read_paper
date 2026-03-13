@@ -3,7 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ papers_data.selected_paper.title if papers_data.selected_paper else '论文详情' }}</title>
+    <title>
+        {% if papers_data.selected_paper %}
+            {% if papers_data.lang == "en" %}
+                {{ papers_data.selected_paper.title }}
+            {% else %}
+                {{ papers_data.selected_paper.title_zh or papers_data.selected_paper.title }}
+            {% endif %}
+        {% else %}
+            论文详情
+        {% endif %}
+    </title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -43,6 +53,7 @@
             margin-bottom: 1.5rem;
             padding-bottom: 1.5rem;
             border-bottom: 1px solid var(--border);
+            position: relative;
             text-align: center;
         }
 
@@ -50,6 +61,32 @@
             font-size: 1.75rem;
             font-weight: 600;
             letter-spacing: -0.02em;
+        }
+
+        .balance-chip {
+            position: absolute;
+            top: 0;
+            right: 0;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.55rem 0.8rem;
+            border-radius: 999px;
+            border: 1px solid #d6e6ff;
+            background: #eef5ff;
+            color: var(--text-primary);
+            font-size: 0.82rem;
+            line-height: 1;
+        }
+
+        .balance-chip-label {
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .balance-chip-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 500;
         }
 
         .layout {
@@ -250,13 +287,57 @@
         }
 
         .detail-body {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) 320px;
+            display: block;
+        }
+
+        .preview-section {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .preview-summary {
+            list-style: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            user-select: none;
+            background: linear-gradient(180deg, #fbfdff 0%, #f3f8ff 100%);
+        }
+
+        .preview-summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .preview-summary-label {
+            font-size: 0.95rem;
+            font-weight: 700;
+        }
+
+        .preview-summary-meta {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.65rem;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        .preview-summary-icon {
+            font-size: 0.9rem;
+            transition: transform 0.2s ease;
+        }
+
+        .preview-section[open] .preview-summary-icon {
+            transform: rotate(0deg);
+        }
+
+        .preview-section:not([open]) .preview-summary-icon {
+            transform: rotate(-90deg);
         }
 
         .preview-panel {
             min-height: 72vh;
-            border-right: 1px solid var(--border);
             background: #eef3f8;
         }
 
@@ -268,8 +349,9 @@
         }
 
         .detail-info {
-            padding: 1.25rem;
+            padding: 1.4rem 1.5rem 1.5rem;
             background: var(--bg-card);
+            border-top: 1px solid var(--border);
         }
 
         .info-block {
@@ -300,13 +382,12 @@
                 position: static;
             }
 
-            .detail-body {
-                grid-template-columns: 1fr;
+            .preview-panel {
+                min-height: 60vh;
             }
 
-            .preview-panel {
-                border-right: 0;
-                border-bottom: 1px solid var(--border);
+            .preview-frame {
+                height: 60vh;
             }
         }
 
@@ -314,13 +395,28 @@
             .container {
                 padding: 1.25rem 1rem;
             }
+
+            .balance-chip {
+                position: static;
+                margin: 0.75rem auto 0;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1 class="detail-title">{{ papers_data.selected_paper.title }}</h1>
+            <h1 class="detail-title">
+                {% if papers_data.lang == "en" %}
+                {{ papers_data.selected_paper.title }}
+                {% else %}
+                {{ papers_data.selected_paper.title_zh or papers_data.selected_paper.title }}
+                {% endif %}
+            </h1>
+            <div class="balance-chip">
+                <span class="balance-chip-label">API 余额</span>
+                <span class="balance-chip-value">{{ papers_data.api_balance if papers_data.api_balance is not none else "N/A" }}</span>
+            </div>
             <h2 class="detail-actions">
                 <a class="paper-link" href="{{ papers_data.selected_paper.url }}" target="_blank" rel="noopener">{{ papers_data.selected_paper.url }}</a>
             </h2>
@@ -375,13 +471,19 @@
                 </div>
 
                 <section class="detail-shell">
-                    <div class="detail-header">
-                        
-                    </div>
                     <div class="detail-body">
-                        <div class="preview-panel">
-                            <iframe class="preview-frame" src="{{ papers_data.selected_paper.url }}"></iframe>
-                        </div>
+                        <details class="preview-section">
+                            <summary class="preview-summary">
+                                <span class="preview-summary-label">论文pdf预览</span>
+                                <span class="preview-summary-meta">
+                                    <span>点击展开/折叠</span>
+                                    <span class="preview-summary-icon">▾</span>
+                                </span>
+                            </summary>
+                            <div class="preview-panel">
+                                <iframe class="preview-frame" src="{{ papers_data.selected_paper.url }}"></iframe>
+                            </div>
+                        </details>
                         <aside class="detail-info">
                             <div class="info-block">
                                 <div class="info-label">中文标题</div>
@@ -390,22 +492,6 @@
                             <div class="info-block">
                                 <div class="info-label">中文摘要</div>
                                 <div class="info-value">{{ papers_data.selected_paper.abstract_zh or papers_data.selected_paper.abstract }}</div>
-                            </div>
-                            {% if papers_data.selected_paper.topics_zh %}
-                            <div class="info-block">
-                                <div class="info-label">中文标签</div>
-                                <div class="tag-list">
-                                    {% for tag in papers_data.selected_paper.topics_zh %}
-                                    <span class="tag">{{ tag }}</span>
-                                    {% endfor %}
-                                </div>
-                            </div>
-                            {% endif %}
-                            <div class="info-block">
-                                <div class="info-label">arXiv 页面</div>
-                                <div class="info-value">
-                                    <a class="detail-link" href="{{ papers_data.selected_paper.url.replace('/pdf/', '/abs/') }}" target="_blank" rel="noopener">{{ papers_data.selected_paper.url.replace('/pdf/', '/abs/') }}</a>
-                                </div>
                             </div>
                         </aside>
                     </div>

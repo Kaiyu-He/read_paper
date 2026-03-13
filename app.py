@@ -2,21 +2,104 @@
 论文预览网页应用
 支持通过 IP 地址访问，展示论文标题、摘要和链接
 """
+import html
 import json
+import re
 from calendar import monthrange
+from datetime import datetime
 from pathlib import Path
+from threading import Lock, Thread
+from time import time
+from typing import Optional
 from urllib.parse import urlencode
 
-from flask import Flask, render_template, request
+from flask import Flask, redirect, render_template, request
 
 from config import get, resolve_path
+from model.api import load_model
+from process_file.load_papers import download_papers_today
+from process_file.summary_all_papers import summary_all_papers
+from process_file.translate_title_abstract import get_pending_translation_count, translate_papers
 
 app = Flask(__name__, template_folder="ui")
+AUTO_LOAD_LOCK = Lock()
+AUTO_LOAD_DONE_DATE = None
+BALANCE_CACHE_LOCK = Lock()
+BALANCE_CACHE = {"value": None, "updated_at": 0.0}
+SUMMARY_JOB_LOCK = Lock()
+SUMMARY_JOB_STATUS = {}
 
 
 def get_file_dir():
     save_path = get("file.save_path", "file")
     return resolve_path(save_path)
+
+
+def get_api_balance():
+    """查询 API 余额，并做短时缓存以避免每次刷新都请求接口。"""
+    cache_ttl = int(get("model.balance_cache_seconds", 300) or 300)
+    now_ts = time()
+    if BALANCE_CACHE["updated_at"] and now_ts - BALANCE_CACHE["updated_at"] < cache_ttl:
+        return BALANCE_CACHE["value"]
+
+    with BALANCE_CACHE_LOCK:
+        now_ts = time()
+        if BALANCE_CACHE["updated_at"] and now_ts - BALANCE_CACHE["updated_at"] < cache_ttl:
+            return BALANCE_CACHE["value"]
+
+        balance_value = None
+        try:
+            model_api = load_model()
+            if model_api:
+                balance_value = model_api.get_balance()
+        except Exception as exc:
+            print(f"余额查询失败: {exc}")
+
+        BALANCE_CACHE["value"] = balance_value
+        BALANCE_CACHE["updated_at"] = now_ts
+        return balance_value
+
+
+def get_today_dir(now=None):
+    now = now or datetime.now()
+    return get_file_dir() / str(now.year) / str(now.month) / str(now.day)
+
+
+def ensure_today_papers_ready(now=None):
+    """12 点后如果今日论文未加载，则自动抓取并翻译。"""
+    global AUTO_LOAD_DONE_DATE
+
+    now = now or datetime.now()
+    if now.hour < 12:
+        return
+
+    today_label = now.strftime("%Y-%m-%d")
+    if AUTO_LOAD_DONE_DATE == today_label:
+        return
+
+    with AUTO_LOAD_LOCK:
+        if AUTO_LOAD_DONE_DATE == today_label:
+            return
+
+        today_dir = get_today_dir(now)
+        papers_path = today_dir / "papers.json"
+        translation_path = today_dir / "papers_zh.json"
+
+        try:
+            if not papers_path.exists():
+                print(f"{today_label} 12点后检测到今日论文未载入，开始自动抓取")
+                download_papers_today()
+
+            if papers_path.exists():
+                pending_count = get_pending_translation_count(papers_path, translation_path)
+                if pending_count > 0:
+                    print(f"{today_label} 检测到今日论文待翻译 {pending_count} 篇，开始自动翻译")
+                    translate_papers(str(papers_path))
+
+            if papers_path.exists() and get_pending_translation_count(papers_path, translation_path) == 0:
+                AUTO_LOAD_DONE_DATE = today_label
+        except Exception as exc:
+            print(f"今日论文自动补跑失败: {exc}")
 
 
 def date_label_from_parts(year: str, month: str, day: str) -> str:
@@ -52,6 +135,175 @@ def get_arxiv_abs_url(pdf_url: str) -> str:
     return pdf_url
 
 
+def get_localized_text(paper: dict, lang: str, field: str) -> str:
+    localized_field = f"{field}_zh"
+    if lang == "zh":
+        return paper.get(localized_field) or paper.get(field, "")
+    return paper.get(field) or paper.get(localized_field, "")
+
+
+def get_summary_question() -> str:
+    return (get("summary.user_question", "") or "").strip()
+
+
+def get_summary_job_key(json_path: Optional[Path]) -> str:
+    if not json_path:
+        return ""
+    return str(json_path.parent / "summary_response.json")
+
+
+def is_summary_generating(json_path: Optional[Path]) -> bool:
+    job_key = get_summary_job_key(json_path)
+    if not job_key:
+        return False
+    with SUMMARY_JOB_LOCK:
+        return bool(SUMMARY_JOB_STATUS.get(job_key))
+
+
+def set_summary_generating(json_path: Optional[Path], generating: bool):
+    job_key = get_summary_job_key(json_path)
+    if not job_key:
+        return
+    with SUMMARY_JOB_LOCK:
+        if generating:
+            SUMMARY_JOB_STATUS[job_key] = True
+        else:
+            SUMMARY_JOB_STATUS.pop(job_key, None)
+
+
+def run_summary_generation(source_path: Path):
+    set_summary_generating(source_path, True)
+    try:
+        summary_all_papers(path=str(source_path))
+    except Exception as exc:
+        print(f"生成今日总结失败: {exc}")
+    finally:
+        set_summary_generating(source_path, False)
+
+
+def format_summary_inline_markdown(text: str) -> str:
+    escaped = html.escape(text, quote=False)
+    escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
+    escaped = re.sub(r"`([^`]+)`", r"<code>\1</code>", escaped)
+    return escaped
+
+
+def render_summary_markdown(markdown_text: str) -> str:
+    """将总结 Markdown 转为适合页面展示的轻量 HTML。"""
+    if not markdown_text:
+        return ""
+
+    normalized_text = re.sub(r"\n+", "\n", markdown_text.strip())
+    lines = normalized_text.splitlines()
+    html_parts = []
+    paragraph_lines = []
+    list_type = None
+
+    def flush_paragraph():
+        nonlocal paragraph_lines
+        if not paragraph_lines:
+            return
+        merged_text = " ".join(line.strip() for line in paragraph_lines if line.strip())
+        content = format_summary_inline_markdown(merged_text)
+        html_parts.append(f"<p>{content}</p>")
+        paragraph_lines = []
+
+    def close_list():
+        nonlocal list_type
+        if list_type:
+            html_parts.append(f"</{list_type}>")
+            list_type = None
+
+    for raw_line in lines:
+        line = raw_line.rstrip()
+        stripped = line.strip()
+
+        if not stripped:
+            flush_paragraph()
+            close_list()
+            continue
+
+        heading_match = re.match(r"^(#{1,3})\s+(.*)$", stripped)
+        if heading_match:
+            flush_paragraph()
+            close_list()
+            level = len(heading_match.group(1)) + 1
+            title = format_summary_inline_markdown(heading_match.group(2).strip())
+            html_parts.append(f'<h{level} class="summary-heading">{title}</h{level}>')
+            continue
+
+        bullet_match = re.match(r"^(\s*)[-*]\s+(.*)$", line)
+        ordered_match = re.match(r"^(\s*)\d+\.\s+(.*)$", line)
+        if bullet_match or ordered_match:
+            flush_paragraph()
+            current_type = "ul" if bullet_match else "ol"
+            match = bullet_match or ordered_match
+            indent_level = min(len(match.group(1)) // 2, 3)
+            if list_type != current_type:
+                close_list()
+                html_parts.append(f"<{current_type}>")
+                list_type = current_type
+            item = format_summary_inline_markdown(match.group(2).strip())
+            html_parts.append(f'<li class="indent-{indent_level}">{item}</li>')
+            continue
+
+        close_list()
+        paragraph_lines.append(stripped)
+
+    flush_paragraph()
+    close_list()
+    return "".join(html_parts)
+
+
+def load_summary_response(json_path: Optional[Path]):
+    """读取与论文数据同目录下的 summary_response.json。"""
+    if not json_path:
+        return None
+
+    summary_path = json_path.parent / "summary_response.json"
+    if not summary_path.exists():
+        return None
+
+    try:
+        with open(summary_path, "r", encoding="utf-8") as f:
+            summary_data = json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return None
+
+    response_text = (summary_data.get("response") or "").strip()
+
+    return {
+        "path": str(summary_path),
+        "user_question": (summary_data.get("user_question") or "").strip(),
+        "generated_at": (summary_data.get("generated_at") or "").strip(),
+        "response": response_text,
+        "response_html": render_summary_markdown(response_text),
+    }
+
+
+def build_summary_status(summary_response, expected_question: str, is_generating: bool):
+    saved_question = (summary_response or {}).get("user_question", "").strip() if summary_response else ""
+    response_text = (summary_response or {}).get("response", "").strip() if summary_response else ""
+    has_summary = bool(summary_response)
+    has_response = bool(response_text)
+    question_matches = bool(expected_question) and saved_question == expected_question
+    if not expected_question:
+        question_matches = not saved_question
+
+    needs_generation = (not has_summary) or (not has_response) or (not question_matches)
+    reason = "正在生成" if is_generating else ("生成总结" if needs_generation else "已是最新")
+
+    return {
+        "has_summary": has_summary,
+        "has_response": has_response,
+        "question_matches": question_matches,
+        "needs_generation": needs_generation,
+        "reason": reason,
+        "expected_question": expected_question,
+        "is_generating": is_generating,
+    }
+
+
 def build_related_papers(papers, selected_paper, selected_date, selected_tags, view_month, source_path, lang):
     if not selected_paper:
         return []
@@ -71,11 +323,11 @@ def build_related_papers(papers, selected_paper, selected_date, selected_tags, v
             tag for tag in paper.get("topics_zh", [])
             if isinstance(tag, str) and tag.strip()
         }
-        if not paper_topics.intersection(active_topics):
+        if not all(tag in paper_topics for tag in active_topics):
             continue
         related.append(
             {
-                "title": paper.get("title_zh") or paper.get("title", ""),
+                "title": get_localized_text(paper, lang, "title"),
                 "active": get_paper_id(paper) == get_paper_id(selected_paper),
                 "href": build_query_string(
                     date=selected_date,
@@ -325,6 +577,8 @@ def load_papers(path=None, selected_date=None, selected_tags=None, view_month=No
     available_dates = list_available_dates()
     resolved_date = selected_date
     selected_tags = [tag for tag in (selected_tags or []) if tag]
+    api_balance = get_api_balance()
+    summary_question = get_summary_question()
 
     if selected_date:
         json_path, available_dates, resolved_date = find_papers_path(selected_date)
@@ -353,6 +607,10 @@ def load_papers(path=None, selected_date=None, selected_tags=None, view_month=No
         "selected_paper": None,
         "related_papers": [],
         "source_path": str(json_path) if path else "",
+        "api_balance": api_balance,
+        "summary_response": None,
+        "summary_status": build_summary_status(None, summary_question, False),
+        "summary_question": summary_question,
     }
 
     if not json_path or not json_path.exists():
@@ -363,6 +621,13 @@ def load_papers(path=None, selected_date=None, selected_tags=None, view_month=No
             data = json.load(f)
     except (json.JSONDecodeError, IOError):
         return empty_result
+
+    summary_response = load_summary_response(json_path)
+    summary_status = build_summary_status(
+        summary_response,
+        summary_question,
+        is_summary_generating(json_path),
+    )
 
     papers = data.get("papers", [])
     all_tags = sorted(
@@ -377,7 +642,7 @@ def load_papers(path=None, selected_date=None, selected_tags=None, view_month=No
     if selected_tags:
         papers = [
             paper for paper in papers
-            if any(tag in paper.get("topics_zh", []) for tag in selected_tags)
+            if all(tag in paper.get("topics_zh", []) for tag in selected_tags)
         ]
 
     selected_paper = None
@@ -440,12 +705,17 @@ def load_papers(path=None, selected_date=None, selected_tags=None, view_month=No
         "selected_paper": selected_paper,
         "related_papers": related_papers,
         "source_path": str(json_path),
+        "api_balance": api_balance,
+        "summary_response": summary_response,
+        "summary_status": summary_status,
+        "summary_question": summary_question,
     }
 
 
 @app.route("/")
 def index():
     """主页：论文列表"""
+    ensure_today_papers_ready()
     path = request.args.get("path")
     selected_date = request.args.get("date")
     selected_tags = request.args.getlist("tag")
@@ -468,6 +738,36 @@ def index():
     )
     template_name = "paper.html" if papers_data.get("selected_paper") else "index.html"
     return render_template(template_name, papers_data=papers_data)
+
+
+@app.route("/generate-summary", methods=["POST"])
+def generate_summary():
+    path = request.form.get("path")
+    selected_date = request.form.get("date")
+    selected_tags = request.form.getlist("tag")
+    view_month = request.form.get("month")
+    lang = request.form.get("lang", "zh")
+
+    redirect_url = build_query_string(
+        date=selected_date,
+        tags=selected_tags,
+        view_month=view_month,
+        path=path,
+        lang=lang,
+    )
+
+    if path:
+        source_path = Path(path)
+    else:
+        source_path, _, _ = find_papers_path(selected_date)
+
+    if not source_path or not source_path.exists():
+        return redirect(redirect_url)
+
+    if not is_summary_generating(source_path):
+        Thread(target=run_summary_generation, args=(source_path,), daemon=True).start()
+
+    return redirect(redirect_url)
 
 
 if __name__ == "__main__":
