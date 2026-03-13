@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ papers_data.selected_paper.title if papers_data.selected_paper else '论文详情' }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #f6f8fa;
+            --bg-card: #ffffff;
+            --bg-hover: #f0f4f8;
+            --text-primary: #1f2328;
+            --text-secondary: #656d76;
+            --accent: #0969da;
+            --accent-hover: #0550ae;
+            --border: #d0d7de;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans SC', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1240px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+        }
+
+        header {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 300px minmax(0, 1fr);
+            gap: 1.5rem;
+        }
+
+        .sidebar {
+            position: sticky;
+            top: 1.5rem;
+            align-self: start;
+            max-height: calc(100vh - 3rem);
+            overflow-y: auto;
+            padding-right: 0.25rem;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .sidebar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .sidebar-top-action {
+            margin-bottom: 1rem;
+        }
+
+        .panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .panel-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            margin-bottom: 0.8rem;
+        }
+
+        .tag-filter-list,
+        .tag-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+        }
+
+        .related-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.55rem;
+        }
+
+        .related-link {
+            display: block;
+            padding: 0.75rem 0.85rem;
+            border-radius: 12px;
+            background: #f7f9fc;
+            border: 1px solid transparent;
+            color: var(--text-primary);
+            text-decoration: none;
+            font-size: 0.86rem;
+            line-height: 1.45;
+        }
+
+        .related-link:hover {
+            background: var(--bg-hover);
+            border-color: #d6e6ff;
+        }
+
+        .related-link.active {
+            background: #eaf2ff;
+            border-color: #b6d3ff;
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        .tag-static,
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem 0.85rem;
+            border-radius: 999px;
+            border: 1px solid #d6e6ff;
+            background: #eef5ff;
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            text-decoration: none;
+        }
+
+        .tag-static.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+
+        .toolbar-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.8rem 1rem;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            font-size: 0.9rem;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            width: 100%;
+        }
+
+        .toolbar-button:hover {
+            background: var(--bg-hover);
+        }
+
+        .meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .lang-switch {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.2rem;
+            border-radius: 999px;
+            background: #eaf2ff;
+            border: 1px solid #d6e6ff;
+            gap: 0.2rem;
+        }
+
+        .lang-switch-option {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 3rem;
+            padding: 0.35rem 0.7rem;
+            border-radius: 999px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 700;
+            transition: all 0.2s ease;
+        }
+
+        .lang-switch-option.active {
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 2px 6px rgba(9, 105, 218, 0.2);
+        }
+
+        .detail-shell {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            overflow: hidden;
+        }
+
+        .detail-header {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            background: linear-gradient(180deg, #fbfdff 0%, #f3f8ff 100%);
+        }
+
+        .detail-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            line-height: 1.5;
+        }
+
+        .detail-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+            justify-content: center;
+            margin-top: 0.9rem;
+        }
+
+        .paper-link,
+        .detail-link {
+            color: var(--accent);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .paper-link:hover,
+        .detail-link:hover {
+            color: var(--accent-hover);
+        }
+
+        .detail-body {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 320px;
+        }
+
+        .preview-panel {
+            min-height: 72vh;
+            border-right: 1px solid var(--border);
+            background: #eef3f8;
+        }
+
+        .preview-frame {
+            width: 100%;
+            height: 72vh;
+            border: 0;
+            background: #fff;
+        }
+
+        .detail-info {
+            padding: 1.25rem;
+            background: var(--bg-card);
+        }
+
+        .info-block {
+            margin-bottom: 1.1rem;
+        }
+
+        .info-label {
+            margin-bottom: 0.35rem;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .info-value {
+            font-size: 0.92rem;
+            color: var(--text-primary);
+            word-break: break-word;
+        }
+
+        @media (max-width: 900px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                position: static;
+            }
+
+            .detail-body {
+                grid-template-columns: 1fr;
+            }
+
+            .preview-panel {
+                border-right: 0;
+                border-bottom: 1px solid var(--border);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .container {
+                padding: 1.25rem 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1 class="detail-title">{{ papers_data.selected_paper.title }}</h1>
+            <h2 class="detail-actions">
+                <a class="paper-link" href="{{ papers_data.selected_paper.url }}" target="_blank" rel="noopener">{{ papers_data.selected_paper.url }}</a>
+            </h2>
+        </header>
+
+        <div class="layout">
+            <aside class="sidebar">
+                <div class="sidebar-top-action">
+                    <a class="toolbar-button" href="/?date={{ papers_data.selected_date }}{% for tag in papers_data.selected_tags %}&tag={{ tag }}{% endfor %}{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}&month={{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}{% if papers_data.source_path %}&path={{ papers_data.source_path }}{% endif %}&lang={{ papers_data.lang }}">返回主页</a>
+                </div>
+
+                <section class="panel">
+                    <div class="panel-title">标签</div>
+                    <div class="tag-filter-list">
+                        {% if papers_data.tag_filters %}
+                        {% for item in papers_data.tag_filters %}
+                        <a class="tag-static {% if item.active %}active{% endif %}" href="{{ item.href }}">{{ item.name }}</a>
+                        {% endfor %}
+                        {% elif papers_data.selected_paper.topics_zh %}
+                        {% for tag in papers_data.selected_paper.topics_zh %}
+                        <span class="tag-static">{{ tag }}</span>
+                        {% endfor %}
+                        {% else %}
+                        <span class="tag-static">无标签</span>
+                        {% endif %}
+                    </div>
+                </section>
+
+                <section class="panel">
+                    <div class="panel-title">其他符合标签的论文</div>
+                    {% if papers_data.related_papers %}
+                    <div class="related-list">
+                        {% for paper in papers_data.related_papers %}
+                        <a class="related-link {% if paper.active %}active{% endif %}" href="{{ paper.href }}">{{ paper.title }}</a>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <span class="tag-static">暂无其他匹配论文</span>
+                    {% endif %}
+                </section>
+            </aside>
+
+            <main class="content">
+                <div class="meta-row">
+                    <span class="lang-switch" aria-label="language switch">
+                        <a class="lang-switch-option {% if papers_data.lang == 'zh' %}active{% endif %}" href="/?date={{ papers_data.selected_date }}{% for tag in papers_data.selected_tags %}&tag={{ tag }}{% endfor %}{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}&month={{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}{% if papers_data.source_path %}&path={{ papers_data.source_path }}{% endif %}&paper={{ papers_data.selected_paper.url }}&lang=zh">中文</a>
+                        <a class="lang-switch-option {% if papers_data.lang == 'en' %}active{% endif %}" href="/?date={{ papers_data.selected_date }}{% for tag in papers_data.selected_tags %}&tag={{ tag }}{% endfor %}{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}&month={{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}{% if papers_data.source_path %}&path={{ papers_data.source_path }}{% endif %}&paper={{ papers_data.selected_paper.url }}&lang=en">EN</a>
+                    </span>
+                    {% if papers_data.selected_tags %}
+                    <span>已筛选标签：{{ papers_data.selected_tags | join("、") }}</span>
+                    {% endif %}
+                </div>
+
+                <section class="detail-shell">
+                    <div class="detail-header">
+                        
+                    </div>
+                    <div class="detail-body">
+                        <div class="preview-panel">
+                            <iframe class="preview-frame" src="{{ papers_data.selected_paper.url }}"></iframe>
+                        </div>
+                        <aside class="detail-info">
+                            <div class="info-block">
+                                <div class="info-label">中文标题</div>
+                                <div class="info-value">{{ papers_data.selected_paper.title_zh or papers_data.selected_paper.title }}</div>
+                            </div>
+                            <div class="info-block">
+                                <div class="info-label">中文摘要</div>
+                                <div class="info-value">{{ papers_data.selected_paper.abstract_zh or papers_data.selected_paper.abstract }}</div>
+                            </div>
+                            {% if papers_data.selected_paper.topics_zh %}
+                            <div class="info-block">
+                                <div class="info-label">中文标签</div>
+                                <div class="tag-list">
+                                    {% for tag in papers_data.selected_paper.topics_zh %}
+                                    <span class="tag">{{ tag }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+                            <div class="info-block">
+                                <div class="info-label">arXiv 页面</div>
+                                <div class="info-value">
+                                    <a class="detail-link" href="{{ papers_data.selected_paper.url.replace('/pdf/', '/abs/') }}" target="_blank" rel="noopener">{{ papers_data.selected_paper.url.replace('/pdf/', '/abs/') }}</a>
+                                </div>
+                            </div>
+                        </aside>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+</body>
+</html>

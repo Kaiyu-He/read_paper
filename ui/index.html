@@ -73,6 +73,10 @@
             display: none;
         }
 
+        .sidebar-top-action {
+            margin-bottom: 1rem;
+        }
+
         .panel {
             background: var(--bg-card);
             border: 1px solid var(--border);
@@ -217,10 +221,16 @@
             color: #fff;
         }
 
-        .sidebar-actions {
-            display: flex;
-            gap: 0.75rem;
-            margin-top: 1rem;
+        .tag-static {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem 0.85rem;
+            border-radius: 999px;
+            border: 1px solid #d6e6ff;
+            background: #eef5ff;
+            color: var(--text-primary);
+            font-size: 0.85rem;
         }
 
         .toolbar-button {
@@ -360,8 +370,10 @@
             margin-top: 0.5rem;
         }
 
-        .content {
-            min-width: 0;
+        .paper-card-link {
+            display: block;
+            text-decoration: none;
+            color: inherit;
         }
 
         @media (max-width: 900px) {
@@ -372,6 +384,7 @@
             .sidebar {
                 position: static;
             }
+
         }
 
         @media (max-width: 640px) {
@@ -397,6 +410,7 @@
 
         <div class="layout">
             <aside class="sidebar">
+                {% if not papers_data.selected_paper %}
                 <section class="panel">
                     <div class="panel-title">日期日历</div>
                     <div class="calendar-header">
@@ -465,6 +479,7 @@
                         {% endfor %}
                     </div>
                 </section>
+                {% endif %}
 
                 <section class="panel">
                     <div class="panel-title">标签筛选</div>
@@ -477,9 +492,6 @@
                             {{ item.name }}
                         </a>
                         {% endfor %}
-                    </div>
-                    <div class="sidebar-actions">
-                        <a class="toolbar-button" href="/?lang={{ papers_data.lang }}">回到默认</a>
                     </div>
                 </section>
             </aside>
@@ -509,30 +521,32 @@
 
                 {% if papers_data.papers %}
                     {% for paper in papers_data.papers %}
-                    <article class="paper-card">
-                        <h2 class="paper-title">
-                            {% if papers_data.lang == "en" %}
-                            {{ paper.title }}
-                            {% else %}
-                            {{ paper.title_zh or paper.title }}
+                    <a class="paper-card-link" href="{{ paper.detail_href }}">
+                        <article class="paper-card">
+                            <h2 class="paper-title">
+                                {% if papers_data.lang == "en" %}
+                                {{ paper.title }}
+                                {% else %}
+                                {{ paper.title_zh or paper.title }}
+                                {% endif %}
+                            </h2>
+                            <p class="paper-abstract">
+                                {% if papers_data.lang == "en" %}
+                                {{ paper.abstract }}
+                                {% else %}
+                                {{ paper.abstract_zh or paper.abstract }}
+                                {% endif %}
+                            </p>
+                            {% if paper.topics_zh %}
+                            <div class="tag-list">
+                                {% for tag in paper.topics_zh %}
+                                <span class="tag">{{ tag }}</span>
+                                {% endfor %}
+                            </div>
                             {% endif %}
-                        </h2>
-                        <p class="paper-abstract">
-                            {% if papers_data.lang == "en" %}
-                            {{ paper.abstract }}
-                            {% else %}
-                            {{ paper.abstract_zh or paper.abstract }}
-                            {% endif %}
-                        </p>
-                        {% if paper.topics_zh %}
-                        <div class="tag-list">
-                            {% for tag in paper.topics_zh %}
-                            <span class="tag">{{ tag }}</span>
-                            {% endfor %}
-                        </div>
-                        {% endif %}
-                        <a href="{{ paper.url }}" target="_blank" rel="noopener" class="paper-link">{{ paper.url }}</a>
-                    </article>
+                            <span class="paper-link">{{ paper.url }}</span>
+                        </article>
+                    </a>
                     {% endfor %}
                 {% else %}
                     <div class="empty-state">
