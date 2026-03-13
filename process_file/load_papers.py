@@ -3,8 +3,11 @@ from bs4 import BeautifulSoup
 import re
 import os
 import json
+import time
 from datetime import datetime
-
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from config import get, resolve_path
 
 def human_readable_size(size_in_bytes):

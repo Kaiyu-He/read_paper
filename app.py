@@ -4,7 +4,6 @@
 """
 import json
 from calendar import monthrange
-from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -294,7 +293,7 @@ def list_available_dates():
 
 
 def find_papers_path(selected_date=None):
-    """优先查找指定日期的数据，其次查找今天，最后回退到最新日期。"""
+    """优先查找指定日期的数据，未指定时回退到最新日期。"""
     available_dates = list_available_dates()
     if not available_dates:
         return None, available_dates, None
@@ -306,14 +305,6 @@ def find_papers_path(selected_date=None):
         for item in available_dates:
             if item["value"] == selected_date:
                 target_dir = item["dir"]
-                break
-
-    if target_dir is None:
-        today = datetime.now().strftime("%Y-%m-%d")
-        for item in available_dates:
-            if item["value"] == today:
-                target_dir = item["dir"]
-                target_value = item["value"]
                 break
 
     if target_dir is None:
@@ -335,11 +326,12 @@ def load_papers(path=None, selected_date=None, selected_tags=None, view_month=No
     resolved_date = selected_date
     selected_tags = [tag for tag in (selected_tags or []) if tag]
 
-    if path:
+    if selected_date:
+        json_path, available_dates, resolved_date = find_papers_path(selected_date)
+    elif path:
         json_path = Path(path)
     else:
         json_path, available_dates, resolved_date = find_papers_path(selected_date)
-
     empty_result = {
         "total_num": 0,
         "papers": [],

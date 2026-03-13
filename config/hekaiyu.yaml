@@ -3,7 +3,7 @@ model:
   model: deepseek-chat
 
 file:
-  save_path: /Users/hekaiyu/Desktop/project/python/pdf/file
+  save_path: /Users/hekaiyu/Desktop/project/python/read_paper/file
   area: RO
 
 ui:
