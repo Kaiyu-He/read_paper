@@ -154,7 +154,7 @@ def summary_all_papers(user_question: str = "", path=None, output_path=None):
     data = load_json_file(source_path)
     papers = data.get("papers", [])
     if not papers:
-        raise RuntimeError(f"论文列表为空: {source_path}")
+        return None
 
     model_api = get_model()
     if not model_api:
@@ -166,7 +166,6 @@ def summary_all_papers(user_question: str = "", path=None, output_path=None):
     if not result:
         raise RuntimeError("总结生成失败")
 
-    print("开始推理")
     target_output_path = resolve_output_path(source_path, output_path)
     response_payload = {
         "user_question": user_question.strip(),

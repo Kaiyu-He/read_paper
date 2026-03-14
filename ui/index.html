@@ -37,7 +37,7 @@
         .container {
             max-width: 1240px;
             margin: 0 auto;
-            padding: 2rem 1.5rem;
+            padding: 0 1.5rem 2rem;
         }
 
         header {
@@ -52,6 +52,69 @@
             font-size: 1.75rem;
             font-weight: 600;
             letter-spacing: -0.02em;
+        }
+
+        .top-nav {
+            width: fit-content;
+            margin: 0 auto 1.75rem;
+            padding: 0.15rem 1rem 0.95rem;
+            background: #fff;
+            border-bottom: 1px solid var(--border);
+            border-radius: 0 0 26px 26px;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.07);
+        }
+
+        .header-nav {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: fit-content;
+            margin: 0 auto;
+        }
+
+        .header-nav-link {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 4.6rem;
+            padding: 0.78rem 1.1rem 0.62rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.88rem;
+            font-weight: 700;
+            line-height: 1.1;
+            transition: color 0.2s ease;
+        }
+
+        .header-nav-link + .header-nav-link::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 50%;
+            width: 1px;
+            height: 0.9rem;
+            background: #d8e0e8;
+            transform: translateY(-50%);
+        }
+
+        .header-nav-link:hover {
+            color: var(--text-primary);
+        }
+
+        .header-nav-link.active {
+            color: var(--accent);
+        }
+
+        .header-nav-link.active::after {
+            content: "";
+            position: absolute;
+            left: 1.2rem;
+            right: 1.2rem;
+            bottom: 0.08rem;
+            height: 0.18rem;
+            border-radius: 999px;
+            background: var(--accent);
         }
 
         .balance-chip {
@@ -123,12 +186,11 @@
             margin-bottom: 0.9rem;
         }
 
-        .calendar-control {
+        .calendar-toolbar {
             display: grid;
-            grid-template-columns: 2rem 1fr 2rem;
+            grid-template-columns: 2.2rem 2rem minmax(0, 1fr) 2rem 2.2rem;
             align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 0.5rem;
+            gap: 0.4rem;
             color: var(--text-secondary);
             font-size: 0.85rem;
         }
@@ -136,19 +198,26 @@
         .calendar-value {
             text-align: center;
             font-weight: 600;
+            white-space: nowrap;
         }
 
         .calendar-nav {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 2rem;
+            min-width: 2rem;
             height: 2rem;
             border-radius: 999px;
             color: var(--text-primary);
             text-decoration: none;
             background: #eef5ff;
             border: 1px solid #d6e6ff;
+        }
+
+        .calendar-nav.year-nav {
+            min-width: 2.2rem;
+            font-size: 0.85rem;
+            letter-spacing: -0.05em;
         }
 
         .calendar-nav.disabled {
@@ -339,13 +408,17 @@
             font-weight: 600;
         }
 
+        .paper-card-shell {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+
         .paper-card {
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 12px;
             min-height: var(--paper-card-height);
             padding: 1.25rem 1.5rem;
-            margin-bottom: 1rem;
             transition: border-color 0.2s, background 0.2s;
         }
 
@@ -371,6 +444,16 @@
             overflow: hidden;
         }
 
+        .paper-card-footer {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.8rem;
+            margin-top: 0.95rem;
+        }
+
         .paper-link {
             display: inline-flex;
             align-items: center;
@@ -379,6 +462,7 @@
             text-decoration: none;
             font-size: 0.85rem;
             font-weight: 500;
+            min-width: 0;
         }
 
         .paper-link:hover {
@@ -407,6 +491,43 @@
 
         .paper-card-link[hidden] {
             display: none !important;
+        }
+
+        .paper-card-main-link {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            border-radius: 12px;
+        }
+
+        .collect-form {
+            flex-shrink: 0;
+            margin: 0;
+        }
+
+        .collect-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.4rem 0.8rem;
+            border-radius: 999px;
+            border: 1px solid #d6e6ff;
+            background: #f7fbff;
+            color: var(--text-primary);
+            font-size: 0.8rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .collect-button:hover {
+            background: #eef5ff;
+        }
+
+        .collect-button.active {
+            border-color: #b6d3ff;
+            background: #eaf2ff;
+            color: var(--accent);
         }
 
         .summary-panel {
@@ -684,7 +805,13 @@
 
         @media (max-width: 640px) {
             .container {
-                padding: 1.25rem 1rem;
+                padding: 0 1rem 1.25rem;
+            }
+
+            .top-nav {
+                margin: 0 auto 1.25rem;
+                padding: 0.1rem 0.85rem 0.8rem;
+                border-radius: 0 0 22px 22px;
             }
 
             .sidebar-actions {
@@ -714,11 +841,17 @@
 </head>
 <body>
     <div class="container">
+        <div class="top-nav">
+            <nav class="header-nav" aria-label="main navigation">
+                <a class="header-nav-link active" href="{{ papers_data.home_href }}">主页</a>
+                <a class="header-nav-link" href="{{ papers_data.favorites_href }}">收藏</a>
+            </nav>
+        </div>
         <header>
             <h1>论文预览</h1>
             <div class="balance-chip">
                 <span class="balance-chip-label">API 余额</span>
-                <span class="balance-chip-value">{{ papers_data.api_balance if papers_data.api_balance is not none else "N/A" }}</span>
+                <span class="balance-chip-value" data-api-balance>{{ papers_data.api_balance if papers_data.api_balance is not none else "N/A" }}</span>
             </div>
         </header>
 
@@ -728,42 +861,33 @@
                 <section class="panel">
                     <div class="panel-title">日期日历</div>
                     <div class="calendar-header">
-                        <div class="calendar-control">
+                        <div class="calendar-toolbar">
                             {% if papers_data.calendar_data.prev_year_link %}
-                            <a class="calendar-nav" href="{{ papers_data.calendar_data.prev_year_link }}">‹</a>
+                            <a class="calendar-nav year-nav" href="{{ papers_data.calendar_data.prev_year_link }}">&lt;&lt;</a>
                             {% else %}
-                            <span class="calendar-nav disabled">‹</span>
+                            <span class="calendar-nav year-nav disabled">&lt;&lt;</span>
                             {% endif %}
-                            <span class="calendar-value">
-                                {% if papers_data.calendar_data.year %}
-                                {{ papers_data.calendar_data.year }} 年
-                                {% else %}
-                                年份
-                                {% endif %}
-                            </span>
-                            {% if papers_data.calendar_data.next_year_link %}
-                            <a class="calendar-nav" href="{{ papers_data.calendar_data.next_year_link }}">›</a>
-                            {% else %}
-                            <span class="calendar-nav disabled">›</span>
-                            {% endif %}
-                        </div>
-                        <div class="calendar-control">
                             {% if papers_data.calendar_data.prev_month_link %}
                             <a class="calendar-nav" href="{{ papers_data.calendar_data.prev_month_link }}">‹</a>
                             {% else %}
                             <span class="calendar-nav disabled">‹</span>
                             {% endif %}
                             <span class="calendar-value">
-                                {% if papers_data.calendar_data.month %}
-                                {{ papers_data.calendar_data.month }} 月
+                                {% if papers_data.calendar_data.year and papers_data.calendar_data.month %}
+                                {{ papers_data.calendar_data.year }}年{{ papers_data.calendar_data.month }}月
                                 {% else %}
-                                月份
+                                年月
                                 {% endif %}
                             </span>
                             {% if papers_data.calendar_data.next_month_link %}
                             <a class="calendar-nav" href="{{ papers_data.calendar_data.next_month_link }}">›</a>
                             {% else %}
                             <span class="calendar-nav disabled">›</span>
+                            {% endif %}
+                            {% if papers_data.calendar_data.next_year_link %}
+                            <a class="calendar-nav year-nav" href="{{ papers_data.calendar_data.next_year_link }}">&gt;&gt;</a>
+                            {% else %}
+                            <span class="calendar-nav year-nav disabled">&gt;&gt;</span>
                             {% endif %}
                         </div>
                     </div>
@@ -918,13 +1042,13 @@
                 {% if papers_data.papers %}
                     <div id="paper-list">
                     {% for paper in papers_data.papers %}
-                    <a
-                        class="paper-card-link"
-                        href="{{ paper.detail_href }}"
+                    <div
+                        class="paper-card-link paper-card-shell"
                         data-search-card
                         data-title-en="{{ paper.title or '' }}"
                         data-title-zh="{{ paper.title_zh or '' }}"
                     >
+                        <a class="paper-card-main-link" href="{{ paper.detail_href }}" aria-label="{{ paper.title_zh or paper.title }}"></a>
                         <article class="paper-card">
                             <h2 class="paper-title">
                                 {% if papers_data.lang == "en" %}
@@ -947,9 +1071,19 @@
                                 {% endfor %}
                             </div>
                             {% endif %}
-                            <span class="paper-link">{{ paper.url }}</span>
+                            <div class="paper-card-footer">
+                                <span class="paper-link">{{ paper.url }}</span>
+                                <form class="collect-form" method="post" action="/toggle-collection">
+                                    <input type="hidden" name="paper_url" value="{{ paper.url }}">
+                                    <input type="hidden" name="path" value="{{ papers_data.source_path or paper.source_path or '' }}">
+                                    <input type="hidden" name="redirect_to" value="{{ papers_data.current_url }}">
+                                    <button class="collect-button {% if paper.is_collected %}active{% endif %}" type="submit">
+                                        {% if paper.is_collected %}已收藏{% else %}收藏{% endif %}
+                                    </button>
+                                </form>
+                            </div>
                         </article>
-                    </a>
+                    </div>
                     {% endfor %}
                     </div>
                     <div class="empty-state" id="paper-search-empty" hidden>
@@ -967,6 +1101,22 @@
     </div>
     <script>
         (function () {
+            const balanceNode = document.querySelector("[data-api-balance]");
+            if (balanceNode) {
+                fetch("/api-balance")
+                    .then(function (response) {
+                        return response.ok ? response.json() : null;
+                    })
+                    .then(function (data) {
+                        if (!data) {
+                            return;
+                        }
+                        balanceNode.textContent = data.balance == null ? "N/A" : data.balance;
+                    })
+                    .catch(function () {});
+            }
+
+            (function () {
             const form = document.getElementById("paper-search-form");
             const input = document.getElementById("paper-search-input");
             const clearLink = document.getElementById("paper-search-clear");
@@ -1067,6 +1217,7 @@
             }
 
             applySearch(input.value);
+            })();
         })();
     </script>
 </body>

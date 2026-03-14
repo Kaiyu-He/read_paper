@@ -32,23 +32,35 @@ def download_papers_today(
     area=None,       # 默认从 config 读取
 ):
     save_path = save_path or str(resolve_path(get("file.save_path", "file")))
-    area = area or get("file.area", "RO")
-    html = urlopen(f"https://arxiv.org/list/cs.{area}/new")
-    bsObj = BeautifulSoup(html, "lxml")
-    today = datetime.now()
-    year = today.year
-    month = today.month
-    date = today.day
-    path = os.path.join(save_path, str(year), str(month), str(date))
-
-    total_size = 0
-    os.makedirs(path, exist_ok=True)
-
-    titleList = bsObj.findAll("div", {"class":"list-title mathjax"})
     papers = {
         "total_num": 0,
         "papers": []
     }
+
+    area = area or get("file.area", "RO")
+    html = urlopen(f"https://arxiv.org/list/cs.{area}/new")
+    bsObj = BeautifulSoup(html, "lxml")
+    
+    today = datetime.now()
+    dateline = bsObj.find("h3")
+    public_date = dateline.get_text().split(' ')[-3]
+
+    year = today.year
+    month = today.month
+    date = today.day
+    path = os.path.join(save_path, str(year), str(month), str(date))
+    total_size = 0
+    os.makedirs(path, exist_ok=True)
+
+    if str(date) != public_date:
+        print(f"今日为{str(date)}日，arxiv 最新发布日期为 {public_date}日，不更新")
+        with open(os.path.join(path, 'papers.json'), 'w') as f:
+                json.dump(papers, f, indent=4)
+        with open(os.path.join(path, 'papers_zh.json'), 'w') as f:
+                json.dump(papers, f, indent=4)
+        return -1
+
+    titleList = bsObj.findAll("div", {"class":"list-title mathjax"})
     for title in titleList:
         abstract = title.parent.find("p", {"class":"mathjax"})
         if abstract is not None:
@@ -70,7 +82,7 @@ def download_papers_today(
                 json.dump(papers, f, indent=4)
 
     print(f"{year}年{month}月{date}日发布的论文已载入完成")
-
+    return 0
 
 if __name__ == "__main__":
     download_papers_today()  # 从 config/hekaiyu.yaml 读取 save_path、area

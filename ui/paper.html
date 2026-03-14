@@ -46,7 +46,7 @@
         .container {
             max-width: 1240px;
             margin: 0 auto;
-            padding: 2rem 1.5rem;
+            padding: 0 1.5rem 2rem;
         }
 
         header {
@@ -61,6 +61,69 @@
             font-size: 1.75rem;
             font-weight: 600;
             letter-spacing: -0.02em;
+        }
+
+        .top-nav {
+            width: fit-content;
+            margin: 0 auto 1.75rem;
+            padding: 0.15rem 1rem 0.95rem;
+            background: #fff;
+            border-bottom: 1px solid var(--border);
+            border-radius: 0 0 26px 26px;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.07);
+        }
+
+        .header-nav {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: fit-content;
+            margin: 0 auto;
+        }
+
+        .header-nav-link {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 4.6rem;
+            padding: 0.78rem 1.1rem 0.62rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.88rem;
+            font-weight: 700;
+            line-height: 1.1;
+            transition: color 0.2s ease;
+        }
+
+        .header-nav-link + .header-nav-link::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 50%;
+            width: 1px;
+            height: 0.9rem;
+            background: #d8e0e8;
+            transform: translateY(-50%);
+        }
+
+        .header-nav-link:hover {
+            color: var(--text-primary);
+        }
+
+        .header-nav-link.active {
+            color: var(--accent);
+        }
+
+        .header-nav-link.active::after {
+            content: "";
+            position: absolute;
+            left: 1.2rem;
+            right: 1.2rem;
+            bottom: 0.08rem;
+            height: 0.18rem;
+            border-radius: 999px;
+            background: var(--accent);
         }
 
         .balance-chip {
@@ -205,6 +268,36 @@
             background: var(--bg-hover);
         }
 
+        .collect-form {
+            margin: 0;
+        }
+
+        .collect-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.8rem 1rem;
+            border-radius: 10px;
+            border: 1px solid #d6e6ff;
+            background: #f7fbff;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+        }
+
+        .collect-button:hover {
+            background: #eef5ff;
+        }
+
+        .collect-button.active {
+            border-color: #b6d3ff;
+            background: #eaf2ff;
+            color: var(--accent);
+        }
+
         .meta-row {
             display: flex;
             flex-wrap: wrap;
@@ -243,6 +336,18 @@
             background: var(--accent);
             color: #fff;
             box-shadow: 0 2px 6px rgba(9, 105, 218, 0.2);
+        }
+
+        .meta-row .collect-form {
+            width: auto;
+            margin-left: auto;
+        }
+
+        .meta-row .collect-button {
+            width: auto;
+            padding: 0.35rem 0.9rem;
+            border-radius: 999px;
+            font-size: 0.8rem;
         }
 
         .detail-shell {
@@ -339,6 +444,9 @@
         .preview-panel {
             min-height: 72vh;
             background: #eef3f8;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .preview-frame {
@@ -346,6 +454,11 @@
             height: 72vh;
             border: 0;
             background: #fff;
+        }
+
+        .preview-placeholder {
+            color: var(--text-secondary);
+            font-size: 0.92rem;
         }
 
         .detail-info {
@@ -393,7 +506,13 @@
 
         @media (max-width: 640px) {
             .container {
-                padding: 1.25rem 1rem;
+                padding: 0 1rem 1.25rem;
+            }
+
+            .top-nav {
+                margin: 0 auto 1.25rem;
+                padding: 0.1rem 0.85rem 0.8rem;
+                border-radius: 0 0 22px 22px;
             }
 
             .balance-chip {
@@ -405,6 +524,12 @@
 </head>
 <body>
     <div class="container">
+        <div class="top-nav">
+            <nav class="header-nav" aria-label="main navigation">
+                <a class="header-nav-link" href="{{ papers_data.home_href }}">主页</a>
+                <a class="header-nav-link" href="{{ papers_data.favorites_href }}">收藏</a>
+            </nav>
+        </div>
         <header>
             <h1 class="detail-title">
                 {% if papers_data.lang == "en" %}
@@ -415,7 +540,7 @@
             </h1>
             <div class="balance-chip">
                 <span class="balance-chip-label">API 余额</span>
-                <span class="balance-chip-value">{{ papers_data.api_balance if papers_data.api_balance is not none else "N/A" }}</span>
+                <span class="balance-chip-value" data-api-balance>{{ papers_data.api_balance if papers_data.api_balance is not none else "N/A" }}</span>
             </div>
             <h2 class="detail-actions">
                 <a class="paper-link" href="{{ papers_data.selected_paper.url }}" target="_blank" rel="noopener">{{ papers_data.selected_paper.url }}</a>
@@ -427,7 +552,6 @@
                 <div class="sidebar-top-action">
                     <a class="toolbar-button" href="/?date={{ papers_data.selected_date }}{% for tag in papers_data.selected_tags %}&tag={{ tag }}{% endfor %}{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}&month={{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}{% if papers_data.source_path %}&path={{ papers_data.source_path | urlencode }}{% endif %}{% if papers_data.search_query %}&query={{ papers_data.search_query | urlencode }}{% endif %}&lang={{ papers_data.lang }}">返回主页</a>
                 </div>
-
                 <section class="panel">
                     <div class="panel-title">标签</div>
                     <div class="tag-filter-list">
@@ -465,6 +589,14 @@
                         <a class="lang-switch-option {% if papers_data.lang == 'zh' %}active{% endif %}" href="/?date={{ papers_data.selected_date }}{% for tag in papers_data.selected_tags %}&tag={{ tag }}{% endfor %}{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}&month={{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}{% if papers_data.source_path %}&path={{ papers_data.source_path | urlencode }}{% endif %}{% if papers_data.search_query %}&query={{ papers_data.search_query | urlencode }}{% endif %}&paper={{ papers_data.selected_paper.url | urlencode }}&lang=zh">中文</a>
                         <a class="lang-switch-option {% if papers_data.lang == 'en' %}active{% endif %}" href="/?date={{ papers_data.selected_date }}{% for tag in papers_data.selected_tags %}&tag={{ tag }}{% endfor %}{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}&month={{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}{% if papers_data.source_path %}&path={{ papers_data.source_path | urlencode }}{% endif %}{% if papers_data.search_query %}&query={{ papers_data.search_query | urlencode }}{% endif %}&paper={{ papers_data.selected_paper.url | urlencode }}&lang=en">EN</a>
                     </span>
+                    <form class="collect-form" method="post" action="/toggle-collection">
+                        <input type="hidden" name="paper_url" value="{{ papers_data.selected_paper.url }}">
+                        <input type="hidden" name="path" value="{{ papers_data.source_path or '' }}">
+                        <input type="hidden" name="redirect_to" value="{{ papers_data.current_url }}">
+                        <button class="collect-button {% if papers_data.selected_paper.is_collected %}active{% endif %}" type="submit">
+                            {% if papers_data.selected_paper.is_collected %}已收藏{% else %}收藏论文{% endif %}
+                        </button>
+                    </form>
                     {% if papers_data.selected_tags %}
                     <span>已筛选标签：{{ papers_data.selected_tags | join("、") }}</span>
                     {% endif %}
@@ -481,7 +613,8 @@
                                 </span>
                             </summary>
                             <div class="preview-panel">
-                                <iframe class="preview-frame" src="{{ papers_data.selected_paper.url }}"></iframe>
+                                <div class="preview-placeholder">展开后加载 PDF 预览</div>
+                                <iframe class="preview-frame" data-src="{{ papers_data.selected_paper.url }}" loading="lazy" hidden></iframe>
                             </div>
                         </details>
                         <aside class="detail-info">
@@ -499,5 +632,58 @@
             </main>
         </div>
     </div>
+    <script>
+        (function () {
+            const balanceNode = document.querySelector("[data-api-balance]");
+            if (balanceNode) {
+                fetch("/api-balance")
+                    .then(function (response) {
+                        return response.ok ? response.json() : null;
+                    })
+                    .then(function (data) {
+                        if (!data) {
+                            return;
+                        }
+                        balanceNode.textContent = data.balance == null ? "N/A" : data.balance;
+                    })
+                    .catch(function () {});
+            }
+
+            const previewSection = document.querySelector(".preview-section");
+            const previewFrame = document.querySelector(".preview-frame");
+            const previewPlaceholder = document.querySelector(".preview-placeholder");
+            if (!previewSection || !previewFrame) {
+                return;
+            }
+
+            function loadPreview() {
+                if (previewFrame.dataset.loaded === "true") {
+                    if (previewPlaceholder) {
+                        previewPlaceholder.hidden = true;
+                    }
+                    previewFrame.hidden = false;
+                    return;
+                }
+
+                const previewSrc = previewFrame.dataset.src;
+                if (!previewSrc) {
+                    return;
+                }
+
+                previewFrame.src = previewSrc;
+                previewFrame.dataset.loaded = "true";
+                previewFrame.hidden = false;
+                if (previewPlaceholder) {
+                    previewPlaceholder.hidden = true;
+                }
+            }
+
+            previewSection.addEventListener("toggle", function () {
+                if (previewSection.open) {
+                    loadPreview();
+                }
+            });
+        })();
+    </script>
 </body>
 </html>

@@ -7,7 +7,7 @@ file:
   area: RO
 
 ui:
-  port: 5715
+  port: 1057
   host: 0.0.0.0
   debug: True
 

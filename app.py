@@ -24,8 +24,19 @@ from process_file.translate_title_abstract import get_pending_translation_count,
 app = Flask(__name__, template_folder="ui")
 AUTO_LOAD_LOCK = Lock()
 AUTO_LOAD_DONE_DATE = None
+AUTO_LOAD_RUNNING_DATE = None
 BALANCE_CACHE_LOCK = Lock()
 BALANCE_CACHE = {"value": None, "updated_at": 0.0}
+PAPERS_CACHE_LOCK = Lock()
+PAPERS_CACHE = {}
+PAPERS_METADATA_CACHE_LOCK = Lock()
+PAPERS_METADATA_CACHE = {}
+SUMMARY_CACHE_LOCK = Lock()
+SUMMARY_CACHE = {}
+AVAILABLE_DATES_CACHE_LOCK = Lock()
+AVAILABLE_DATES_CACHE = {"value": None, "updated_at": 0.0}
+COLLECTIONS_CACHE_LOCK = Lock()
+COLLECTIONS_CACHE = {}
 SUMMARY_JOB_LOCK = Lock()
 SUMMARY_JOB_STATUS = {}
 
@@ -60,14 +71,276 @@ def get_api_balance():
         return balance_value
 
 
+def get_balance_cache_value():
+    return BALANCE_CACHE["value"]
+
+
 def get_today_dir(now=None):
     now = now or datetime.now()
     return get_file_dir() / str(now.year) / str(now.month) / str(now.day)
 
 
+def read_json_file(json_path: Path):
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError, OSError):
+        return None
+
+
+def get_file_mtime(json_path: Path):
+    try:
+        return json_path.stat().st_mtime
+    except OSError:
+        return None
+
+
+def load_cached_json(json_path: Path):
+    mtime = get_file_mtime(json_path)
+    if mtime is None:
+        return None
+
+    cache_key = str(json_path)
+    with PAPERS_CACHE_LOCK:
+        cached = PAPERS_CACHE.get(cache_key)
+        if cached and cached["mtime"] == mtime:
+            return cached["data"]
+
+    data = read_json_file(json_path)
+    if data is None:
+        return None
+
+    with PAPERS_CACHE_LOCK:
+        PAPERS_CACHE[cache_key] = {"mtime": mtime, "data": data}
+    return data
+
+
+def has_papers_content(json_path: Optional[Path]) -> bool:
+    if not json_path or not json_path.exists():
+        return False
+    data = load_cached_json(json_path)
+    return bool((data or {}).get("papers"))
+
+
+def get_cached_papers_metadata(json_path: Path):
+    data = load_cached_json(json_path)
+    if data is None:
+        return None
+
+    mtime = get_file_mtime(json_path)
+    if mtime is None:
+        return None
+
+    cache_key = str(json_path)
+    with PAPERS_METADATA_CACHE_LOCK:
+        cached = PAPERS_METADATA_CACHE.get(cache_key)
+        if cached and cached["mtime"] == mtime:
+            return cached["data"]
+
+    papers = data.get("papers", [])
+    prepared_papers = []
+    paper_index = {}
+    all_tags = set()
+
+    for paper in papers:
+        topics = [
+            tag.strip()
+            for tag in paper.get("topics_zh", [])
+            if isinstance(tag, str) and tag.strip()
+        ]
+        prepared_paper = {
+            **paper,
+            "_topic_set": set(topics),
+        }
+        prepared_papers.append(prepared_paper)
+        paper_index[get_paper_id(prepared_paper)] = prepared_paper
+        all_tags.update(topics)
+
+    metadata = {
+        "papers": prepared_papers,
+        "paper_index": paper_index,
+        "all_tags": sorted(all_tags),
+    }
+
+    with PAPERS_METADATA_CACHE_LOCK:
+        PAPERS_METADATA_CACHE[cache_key] = {"mtime": mtime, "data": metadata}
+    return metadata
+
+
+def invalidate_available_dates_cache():
+    with AVAILABLE_DATES_CACHE_LOCK:
+        AVAILABLE_DATES_CACHE["value"] = None
+        AVAILABLE_DATES_CACHE["updated_at"] = 0.0
+
+
+def get_collect_dir():
+    return get_file_dir() / "collect"
+
+
+def get_collections_path():
+    return get_collect_dir() / "collections.json"
+
+
+def get_current_request_url() -> str:
+    query_string = request.query_string.decode("utf-8")
+    return f"{request.path}?{query_string}" if query_string else request.path
+
+
+def infer_source_date(source_path: Optional[Path]) -> str:
+    if not source_path:
+        return ""
+    try:
+        day_dir = source_path.parent
+        return date_label_from_parts(day_dir.parent.parent.name, day_dir.parent.name, day_dir.name)
+    except (ValueError, AttributeError, IndexError):
+        return ""
+
+
+def load_collections_store():
+    collections_path = get_collections_path()
+    if not collections_path.exists():
+        return {"papers": []}
+
+    mtime = get_file_mtime(collections_path)
+    if mtime is None:
+        return {"papers": []}
+
+    cache_key = str(collections_path)
+    with COLLECTIONS_CACHE_LOCK:
+        cached = COLLECTIONS_CACHE.get(cache_key)
+        if cached and cached["mtime"] == mtime:
+            return cached["data"]
+
+    data = read_json_file(collections_path) or {}
+    papers = data.get("papers", [])
+    if not isinstance(papers, list):
+        papers = []
+
+    normalized = []
+    for paper in papers:
+        if not isinstance(paper, dict):
+            continue
+        paper_url = str(paper.get("url", "")).strip()
+        if not paper_url:
+            continue
+        normalized.append({**paper, "url": paper_url})
+
+    normalized.sort(key=lambda item: item.get("collected_at", ""), reverse=True)
+    store = {"papers": normalized}
+    with COLLECTIONS_CACHE_LOCK:
+        COLLECTIONS_CACHE[cache_key] = {"mtime": mtime, "data": store}
+    return store
+
+
+def save_collections_store(papers):
+    collections_path = get_collections_path()
+    collections_path.parent.mkdir(parents=True, exist_ok=True)
+    normalized = sorted(papers, key=lambda item: item.get("collected_at", ""), reverse=True)
+    payload = {"papers": normalized}
+    with open(collections_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=4)
+
+    mtime = get_file_mtime(collections_path)
+    if mtime is not None:
+        with COLLECTIONS_CACHE_LOCK:
+            COLLECTIONS_CACHE[str(collections_path)] = {"mtime": mtime, "data": payload}
+
+
+def get_collected_url_set():
+    return {
+        paper.get("url", "").strip()
+        for paper in load_collections_store()["papers"]
+        if isinstance(paper, dict) and paper.get("url")
+    }
+
+
+def build_collection_entry(paper: dict, source_path: Optional[Path]):
+    return {
+        "title": paper.get("title", ""),
+        "title_zh": paper.get("title_zh", ""),
+        "abstract": paper.get("abstract", ""),
+        "abstract_zh": paper.get("abstract_zh", ""),
+        "url": paper.get("url", ""),
+        "topics_zh": [
+            tag.strip()
+            for tag in paper.get("topics_zh", [])
+            if isinstance(tag, str) and tag.strip()
+        ],
+        "source_path": str(source_path) if source_path else "",
+        "source_date": infer_source_date(source_path),
+        "collected_at": datetime.now().isoformat(),
+    }
+
+
+def find_paper_in_source(source_path: Optional[Path], paper_url: str):
+    if not source_path or not source_path.exists() or not paper_url:
+        return None
+    metadata = get_cached_papers_metadata(source_path)
+    if metadata is None:
+        return None
+    return metadata["paper_index"].get(paper_url)
+
+
+def build_base_page_data(lang: str, search_query: str, view: str):
+    return {
+        "lang": lang,
+        "api_balance": get_balance_cache_value(),
+        "summary_response": None,
+        "summary_status": build_summary_status(None, get_summary_question(), False),
+        "summary_question": get_summary_question(),
+        "search_query": (search_query or "").strip(),
+        "current_url": get_current_request_url(),
+        "view": view,
+        "home_href": build_query_string(lang=lang),
+        "favorites_href": build_query_string(base_path="/favorites", lang=lang),
+    }
+
+
+def resolve_non_empty_papers_path(day_dir: Path):
+    preferred = day_dir / "papers_zh.json"
+    fallback = day_dir / "papers.json"
+    if has_papers_content(preferred):
+        return preferred
+    if has_papers_content(fallback):
+        return fallback
+    return None
+
+
+def run_today_papers_ready(now: datetime, today_label: str):
+    global AUTO_LOAD_DONE_DATE, AUTO_LOAD_RUNNING_DATE
+
+    today_dir = get_today_dir(now)
+    papers_path = today_dir / "papers.json"
+    translation_path = today_dir / "papers_zh.json"
+
+    try:
+        if not papers_path.exists():
+            print(f"{today_label} 12点后检测到今日论文未载入，开始自动抓取")
+            download_result = download_papers_today()
+            invalidate_available_dates_cache()
+            if download_result == -1:
+                AUTO_LOAD_DONE_DATE = today_label
+                return
+
+        if papers_path.exists():
+            pending_count = get_pending_translation_count(papers_path, translation_path)
+            if pending_count > 0:
+                print(f"{today_label} 检测到今日论文待翻译 {pending_count} 篇，开始自动翻译")
+                translate_papers(str(papers_path))
+
+        if papers_path.exists() and get_pending_translation_count(papers_path, translation_path) == 0:
+            AUTO_LOAD_DONE_DATE = today_label
+    except Exception as exc:
+        print(f"今日论文自动补跑失败: {exc}")
+    finally:
+        with AUTO_LOAD_LOCK:
+            if AUTO_LOAD_RUNNING_DATE == today_label:
+                AUTO_LOAD_RUNNING_DATE = None
+
+
 def ensure_today_papers_ready(now=None):
-    """12 点后如果今日论文未加载，则自动抓取并翻译。"""
-    global AUTO_LOAD_DONE_DATE
+    """12 点后如果今日论文未加载，则后台抓取并翻译。"""
+    global AUTO_LOAD_DONE_DATE, AUTO_LOAD_RUNNING_DATE
 
     now = now or datetime.now()
     if now.hour < 12:
@@ -78,35 +351,18 @@ def ensure_today_papers_ready(now=None):
         return
 
     with AUTO_LOAD_LOCK:
-        if AUTO_LOAD_DONE_DATE == today_label:
+        if AUTO_LOAD_DONE_DATE == today_label or AUTO_LOAD_RUNNING_DATE == today_label:
             return
+        AUTO_LOAD_RUNNING_DATE = today_label
 
-        today_dir = get_today_dir(now)
-        papers_path = today_dir / "papers.json"
-        translation_path = today_dir / "papers_zh.json"
-
-        try:
-            if not papers_path.exists():
-                print(f"{today_label} 12点后检测到今日论文未载入，开始自动抓取")
-                download_papers_today()
-
-            if papers_path.exists():
-                pending_count = get_pending_translation_count(papers_path, translation_path)
-                if pending_count > 0:
-                    print(f"{today_label} 检测到今日论文待翻译 {pending_count} 篇，开始自动翻译")
-                    translate_papers(str(papers_path))
-
-            if papers_path.exists() and get_pending_translation_count(papers_path, translation_path) == 0:
-                AUTO_LOAD_DONE_DATE = today_label
-        except Exception as exc:
-            print(f"今日论文自动补跑失败: {exc}")
+    Thread(target=run_today_papers_ready, args=(now, today_label), daemon=True).start()
 
 
 def date_label_from_parts(year: str, month: str, day: str) -> str:
     return f"{int(year):04d}-{int(month):02d}-{int(day):02d}"
 
 
-def build_query_string(date=None, tags=None, view_month=None, path=None, lang=None, paper=None, query=None):
+def build_query_string(base_path="/", date=None, tags=None, view_month=None, path=None, lang=None, paper=None, query=None):
     params = []
     if date:
         params.append(("date", date))
@@ -124,7 +380,7 @@ def build_query_string(date=None, tags=None, view_month=None, path=None, lang=No
     if query:
         params.append(("query", query))
     query = urlencode(params, doseq=True)
-    return f"/?{query}" if query else "/"
+    return f"{base_path}?{query}" if query else base_path
 
 
 def get_paper_id(paper: dict) -> str:
@@ -180,6 +436,9 @@ def run_summary_generation(source_path: Path):
     except Exception as exc:
         print(f"生成今日总结失败: {exc}")
     finally:
+        summary_path = source_path.parent / "summary_response.json"
+        with SUMMARY_CACHE_LOCK:
+            SUMMARY_CACHE.pop(str(summary_path), None)
         set_summary_generating(source_path, False)
 
 
@@ -265,22 +524,31 @@ def load_summary_response(json_path: Optional[Path]):
     summary_path = json_path.parent / "summary_response.json"
     if not summary_path.exists():
         return None
+    summary_mtime = get_file_mtime(summary_path)
+    if summary_mtime is None:
+        return None
 
-    try:
-        with open(summary_path, "r", encoding="utf-8") as f:
-            summary_data = json.load(f)
-    except (json.JSONDecodeError, IOError):
+    cache_key = str(summary_path)
+    with SUMMARY_CACHE_LOCK:
+        cached = SUMMARY_CACHE.get(cache_key)
+        if cached and cached["mtime"] == summary_mtime:
+            return cached["data"]
+
+    summary_data = read_json_file(summary_path)
+    if summary_data is None:
         return None
 
     response_text = (summary_data.get("response") or "").strip()
-
-    return {
+    rendered = {
         "path": str(summary_path),
         "user_question": (summary_data.get("user_question") or "").strip(),
         "generated_at": (summary_data.get("generated_at") or "").strip(),
         "response": response_text,
         "response_html": render_summary_markdown(response_text),
     }
+    with SUMMARY_CACHE_LOCK:
+        SUMMARY_CACHE[cache_key] = {"mtime": summary_mtime, "data": rendered}
+    return rendered
 
 
 def build_summary_status(summary_response, expected_question: str, is_generating: bool):
@@ -321,10 +589,12 @@ def build_related_papers(papers, selected_paper, selected_date, selected_tags, v
 
     related = []
     for paper in papers:
-        paper_topics = {
-            tag for tag in paper.get("topics_zh", [])
-            if isinstance(tag, str) and tag.strip()
-        }
+        paper_topics = paper.get("_topic_set")
+        if paper_topics is None:
+            paper_topics = {
+                tag for tag in paper.get("topics_zh", [])
+                if isinstance(tag, str) and tag.strip()
+            }
         if not all(tag in paper_topics for tag in active_topics):
             continue
         related.append(
@@ -537,7 +807,12 @@ def build_calendar_data(
 
 
 def list_available_dates():
-    """列出存在 papers.json 或 papers_zh.json 的日期目录。"""
+    """列出存在非空论文数据的日期目录。"""
+    cache_ttl = int(get("file.list_cache_seconds", 30) or 30)
+    now_ts = time()
+    if AVAILABLE_DATES_CACHE["value"] is not None and now_ts - AVAILABLE_DATES_CACHE["updated_at"] < cache_ttl:
+        return AVAILABLE_DATES_CACHE["value"]
+
     file_dir = get_file_dir()
     if not file_dir.exists():
         return []
@@ -552,8 +827,7 @@ def list_available_dates():
             for day_dir in month_dir.iterdir():
                 if not day_dir.is_dir() or not day_dir.name.isdigit():
                     continue
-                has_data = (day_dir / "papers_zh.json").exists() or (day_dir / "papers.json").exists()
-                if has_data:
+                if resolve_non_empty_papers_path(day_dir):
                     available_dates.append(
                         {
                             "value": date_label_from_parts(year_dir.name, month_dir.name, day_dir.name),
@@ -561,11 +835,15 @@ def list_available_dates():
                         }
                     )
 
-    return sorted(available_dates, key=lambda item: item["value"], reverse=True)
+    sorted_dates = sorted(available_dates, key=lambda item: item["value"], reverse=True)
+    with AVAILABLE_DATES_CACHE_LOCK:
+        AVAILABLE_DATES_CACHE["value"] = sorted_dates
+        AVAILABLE_DATES_CACHE["updated_at"] = now_ts
+    return sorted_dates
 
 
 def find_papers_path(selected_date=None):
-    """优先查找指定日期的数据，未指定时回退到最新日期。"""
+    """优先查找指定日期的非空数据，未指定时回退到最新非空日期。"""
     available_dates = list_available_dates()
     if not available_dates:
         return None, available_dates, None
@@ -583,12 +861,9 @@ def find_papers_path(selected_date=None):
         target_dir = available_dates[0]["dir"]
         target_value = available_dates[0]["value"]
 
-    preferred = target_dir / "papers_zh.json"
-    fallback = target_dir / "papers.json"
-    if preferred.exists():
-        return preferred, available_dates, target_value
-    if fallback.exists():
-        return fallback, available_dates, target_value
+    resolved_path = resolve_non_empty_papers_path(target_dir)
+    if resolved_path:
+        return resolved_path, available_dates, target_value
     return None, available_dates, target_value
 
 
@@ -606,8 +881,7 @@ def load_papers(
     resolved_date = selected_date
     selected_tags = [tag for tag in (selected_tags or []) if tag]
     search_query = (search_query or "").strip()
-    api_balance = get_api_balance()
-    summary_question = get_summary_question()
+    collected_urls = get_collected_url_set()
 
     if selected_date:
         json_path, available_dates, resolved_date = find_papers_path(selected_date)
@@ -615,7 +889,9 @@ def load_papers(
         json_path = Path(path)
     else:
         json_path, available_dates, resolved_date = find_papers_path(selected_date)
+    page_data = build_base_page_data(lang, search_query, "home")
     empty_result = {
+        **page_data,
         "total_num": 0,
         "papers": [],
         "all_tags": [],
@@ -633,55 +909,39 @@ def load_papers(
         ),
         "selected_tags": selected_tags,
         "tag_filters": [],
-        "lang": lang,
         "selected_paper": None,
         "related_papers": [],
         "source_path": str(json_path) if path else "",
-        "api_balance": api_balance,
-        "summary_response": None,
-        "summary_status": build_summary_status(None, summary_question, False),
-        "summary_question": summary_question,
-        "search_query": search_query,
     }
 
     if not json_path or not json_path.exists():
         return empty_result
 
-    try:
-        with open(json_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, IOError):
+    metadata = get_cached_papers_metadata(json_path)
+    if metadata is None:
         return empty_result
 
     summary_response = load_summary_response(json_path)
     summary_status = build_summary_status(
         summary_response,
-        summary_question,
+        page_data["summary_question"],
         is_summary_generating(json_path),
     )
 
-    papers = data.get("papers", [])
-    all_tags = sorted(
-        {
-            tag.strip()
-            for paper in papers
-            for tag in paper.get("topics_zh", [])
-            if isinstance(tag, str) and tag.strip()
-        }
-    )
+    papers = metadata["papers"]
+    all_tags = metadata["all_tags"]
 
     if selected_tags:
         papers = [
             paper for paper in papers
-            if all(tag in paper.get("topics_zh", []) for tag in selected_tags)
+            if all(tag in paper.get("_topic_set", set()) for tag in selected_tags)
         ]
 
     selected_paper = None
     if selected_paper_id:
-        for paper in papers:
-            if get_paper_id(paper) == selected_paper_id:
-                selected_paper = paper
-                break
+        selected_paper = metadata["paper_index"].get(selected_paper_id)
+        if selected_paper and selected_paper not in papers:
+            selected_paper = None
 
     view_month_value = view_month or (resolved_date[:7] if resolved_date else None)
     related_papers = build_related_papers(
@@ -696,10 +956,12 @@ def load_papers(
     )
 
     return {
+        **page_data,
         "total_num": len(papers),
         "papers": [
             {
                 **paper,
+                "is_collected": get_paper_id(paper) in collected_urls,
                 "detail_href": build_query_string(
                     date=resolved_date,
                     tags=selected_tags,
@@ -736,16 +998,139 @@ def load_papers(
             selected_paper_id,
             search_query,
         ),
-        "lang": lang,
-        "selected_paper": selected_paper,
+        "selected_paper": {
+            **selected_paper,
+            "is_collected": get_paper_id(selected_paper) in collected_urls,
+        } if selected_paper else None,
         "related_papers": related_papers,
         "source_path": str(json_path),
-        "api_balance": api_balance,
         "summary_response": summary_response,
         "summary_status": summary_status,
-        "summary_question": summary_question,
-        "search_query": search_query,
     }
+
+
+def load_favorite_papers(selected_tags=None, lang="zh", search_query=""):
+    selected_tags = [tag for tag in (selected_tags or []) if tag]
+    search_query = (search_query or "").strip()
+    page_data = build_base_page_data(lang, search_query, "favorites")
+    stored_papers = load_collections_store()["papers"]
+
+    prepared_papers = []
+    all_tags = set()
+    for paper in stored_papers:
+        topics = [
+            tag.strip()
+            for tag in paper.get("topics_zh", [])
+            if isinstance(tag, str) and tag.strip()
+        ]
+        all_tags.update(topics)
+        prepared_papers.append(
+            {
+                **paper,
+                "_topic_set": set(topics),
+            }
+        )
+
+    if selected_tags:
+        prepared_papers = [
+            paper for paper in prepared_papers
+            if all(tag in paper.get("_topic_set", set()) for tag in selected_tags)
+        ]
+
+    return {
+        **page_data,
+        "total_num": len(prepared_papers),
+        "papers": [
+            {
+                **paper,
+                "is_collected": True,
+                "detail_href": build_query_string(
+                    date=paper.get("source_date"),
+                    path=paper.get("source_path"),
+                    lang=lang,
+                    paper=get_paper_id(paper),
+                    query=search_query,
+                ),
+            }
+            for paper in prepared_papers
+        ],
+        "all_tags": sorted(all_tags),
+        "selected_date": None,
+        "available_dates": [],
+        "calendar_data": build_calendar_data([], None, selected_tags=selected_tags, lang=lang, search_query=search_query),
+        "selected_tags": selected_tags,
+        "tag_filters": [
+            {
+                "name": "全部",
+                "active": not selected_tags,
+                "href": build_query_string(base_path="/favorites", lang=lang),
+            },
+            *[
+                {
+                    "name": tag,
+                    "active": tag in selected_tags,
+                    "href": build_query_string(
+                        base_path="/favorites",
+                        tags=[item for item in selected_tags if item != tag] if tag in selected_tags else [*selected_tags, tag],
+                        lang=lang,
+                        query=search_query,
+                    ),
+                }
+                for tag in sorted(all_tags)
+            ],
+        ],
+        "selected_paper": None,
+        "related_papers": [],
+        "source_path": "",
+    }
+
+
+@app.route("/api-balance")
+def api_balance():
+    return {"balance": get_api_balance()}
+
+
+@app.route("/favorites")
+def favorites():
+    selected_tags = request.args.getlist("tag")
+    if not selected_tags:
+        single_tag = request.args.get("tag")
+        if single_tag:
+            selected_tags = [item for item in single_tag.split(",") if item]
+    lang = request.args.get("lang", "zh")
+    search_query = request.args.get("query", "")
+    if lang not in {"zh", "en"}:
+        lang = "zh"
+    papers_data = load_favorite_papers(selected_tags=selected_tags, lang=lang, search_query=search_query)
+    return render_template("favorites.html", papers_data=papers_data)
+
+
+@app.route("/toggle-collection", methods=["POST"])
+def toggle_collection():
+    paper_url = (request.form.get("paper_url") or "").strip()
+    path = (request.form.get("path") or "").strip()
+    redirect_to = (request.form.get("redirect_to") or "").strip() or "/"
+
+    if not paper_url:
+        return redirect(redirect_to)
+
+    store = load_collections_store()
+    papers = list(store["papers"])
+    existing_index = next((index for index, paper in enumerate(papers) if paper.get("url") == paper_url), None)
+
+    if existing_index is not None:
+        papers.pop(existing_index)
+        save_collections_store(papers)
+        return redirect(redirect_to)
+
+    source_path = Path(path) if path else None
+    source_paper = find_paper_in_source(source_path, paper_url)
+    if source_paper is None:
+        return redirect(redirect_to)
+
+    papers.append(build_collection_entry(source_paper, source_path))
+    save_collections_store(papers)
+    return redirect(redirect_to)
 
 
 @app.route("/")
