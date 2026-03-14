@@ -641,6 +641,7 @@
             scrollbar-color: #b7cceb #eef5ff;
         }
 
+        .summary-content h1,
         .summary-content h2,
         .summary-content h3,
         .summary-content h4 {
@@ -651,6 +652,10 @@
 
         .summary-content .summary-heading {
             margin-bottom: 1.1rem;
+        }
+
+        .summary-content h1 {
+            font-size: 1.12rem;
         }
 
         .summary-content h2 {
@@ -702,6 +707,54 @@
             background: #eaf2ff;
             font-family: 'JetBrains Mono', monospace;
             font-size: 0.84em;
+        }
+
+        .summary-content pre {
+            margin: 0.7rem 0;
+            padding: 0.85rem 0.95rem;
+            border-radius: 12px;
+            background: #0f172a;
+            color: #e2e8f0;
+            overflow-x: auto;
+        }
+
+        .summary-content pre code {
+            display: block;
+            padding: 0;
+            background: transparent;
+            color: inherit;
+            font-size: 0.83rem;
+            line-height: 1.65;
+        }
+
+        .summary-content blockquote {
+            margin: 0.75rem 0;
+            padding: 0.25rem 0 0.25rem 0.9rem;
+            border-left: 3px solid #b6d3ff;
+            color: #4b5563;
+            background: rgba(234, 242, 255, 0.35);
+        }
+
+        .summary-content hr {
+            margin: 0.8rem 0;
+            border: 0;
+            border-top: 1px solid #d6e6ff;
+        }
+
+        .summary-content a {
+            color: #0550ae;
+            text-decoration: none;
+            border-bottom: 1px solid rgba(5, 80, 174, 0.25);
+        }
+
+        .summary-content a:hover {
+            color: #023e8a;
+            border-bottom-color: rgba(2, 62, 138, 0.45);
+        }
+
+        .summary-content em {
+            font-style: italic;
+            color: #374151;
         }
 
         .summary-content::-webkit-scrollbar {

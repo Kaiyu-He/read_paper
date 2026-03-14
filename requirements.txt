@@ -6,3 +6,4 @@ lxml
 openai
 flask
 pyyaml
+python-markdown

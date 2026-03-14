@@ -39,7 +39,7 @@ class deepseek_api(model_api):
         print("获取余额失败")
         return None
 
-    def inference(self, messages, api_key=None):
+    def inference(self, messages, api_key=None, pdf_path = None):
         api_key = api_key or get("model.api_key") or os.environ.get("DEEPSEEK_API_KEY")
         if not api_key:
             print("请配置 model.api_key 或设置 DEEPSEEK_API_KEY")

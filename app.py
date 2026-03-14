@@ -14,9 +14,14 @@ from typing import Optional
 from urllib.parse import urlencode
 
 from flask import Flask, redirect, render_template, request
+try:
+    import markdown as python_markdown
+except ImportError:
+    python_markdown = None
 
 from config import get, resolve_path
 from model.api import load_model
+from process_file.analysis_paper import analysis_paper, get_analysis_output_path
 from process_file.load_papers import download_papers_today
 from process_file.summary_all_papers import summary_all_papers
 from process_file.translate_title_abstract import get_pending_translation_count, translate_papers
@@ -33,12 +38,16 @@ PAPERS_METADATA_CACHE_LOCK = Lock()
 PAPERS_METADATA_CACHE = {}
 SUMMARY_CACHE_LOCK = Lock()
 SUMMARY_CACHE = {}
+ANALYSIS_CACHE_LOCK = Lock()
+ANALYSIS_CACHE = {}
 AVAILABLE_DATES_CACHE_LOCK = Lock()
 AVAILABLE_DATES_CACHE = {"value": None, "updated_at": 0.0}
 COLLECTIONS_CACHE_LOCK = Lock()
 COLLECTIONS_CACHE = {}
 SUMMARY_JOB_LOCK = Lock()
 SUMMARY_JOB_STATUS = {}
+ANALYSIS_JOB_LOCK = Lock()
+ANALYSIS_JOB_STATUS = {}
 
 
 def get_file_dir():
@@ -404,6 +413,29 @@ def get_summary_question() -> str:
     return (get("summary.user_question", "") or "").strip()
 
 
+def get_analysis_job_key(paper_url: str) -> str:
+    return (paper_url or "").strip()
+
+
+def is_analysis_generating(paper_url: str) -> bool:
+    job_key = get_analysis_job_key(paper_url)
+    if not job_key:
+        return False
+    with ANALYSIS_JOB_LOCK:
+        return bool(ANALYSIS_JOB_STATUS.get(job_key))
+
+
+def set_analysis_generating(paper_url: str, generating: bool):
+    job_key = get_analysis_job_key(paper_url)
+    if not job_key:
+        return
+    with ANALYSIS_JOB_LOCK:
+        if generating:
+            ANALYSIS_JOB_STATUS[job_key] = True
+        else:
+            ANALYSIS_JOB_STATUS.pop(job_key, None)
+
+
 def get_summary_job_key(json_path: Optional[Path]) -> str:
     if not json_path:
         return ""
@@ -442,23 +474,45 @@ def run_summary_generation(source_path: Path):
         set_summary_generating(source_path, False)
 
 
+def run_analysis_generation(source_path: Path, paper_url: str):
+    set_analysis_generating(paper_url, True)
+    try:
+        analysis_paper(paper_url, str(source_path))
+    except Exception as exc:
+        print(f"生成论文分析失败: {exc}")
+    finally:
+        analysis_path = get_analysis_output_path(paper_url)
+        with ANALYSIS_CACHE_LOCK:
+            ANALYSIS_CACHE.pop(str(analysis_path), None)
+        set_analysis_generating(paper_url, False)
+
+
 def format_summary_inline_markdown(text: str) -> str:
     escaped = html.escape(text, quote=False)
+    escaped = re.sub(
+        r"\[([^\]]+)\]\((https?://[^\s)]+)\)",
+        r'<a href="\2" target="_blank" rel="noopener">\1</a>',
+        escaped,
+    )
     escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
+    escaped = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<em>\1</em>", escaped)
     escaped = re.sub(r"`([^`]+)`", r"<code>\1</code>", escaped)
     return escaped
 
 
-def render_summary_markdown(markdown_text: str) -> str:
-    """将总结 Markdown 转为适合页面展示的轻量 HTML。"""
+def render_basic_markdown(markdown_text: str) -> str:
+    """Markdown 依赖不可用时的轻量兜底渲染。"""
     if not markdown_text:
         return ""
 
-    normalized_text = re.sub(r"\n+", "\n", markdown_text.strip())
+    normalized_text = markdown_text.replace("\r\n", "\n").strip()
     lines = normalized_text.splitlines()
     html_parts = []
     paragraph_lines = []
     list_type = None
+    code_block_lines = []
+    code_block_lang = ""
+    quote_lines = []
 
     def flush_paragraph():
         nonlocal paragraph_lines
@@ -475,16 +529,66 @@ def render_summary_markdown(markdown_text: str) -> str:
             html_parts.append(f"</{list_type}>")
             list_type = None
 
+    def flush_code_block():
+        nonlocal code_block_lines, code_block_lang
+        if not code_block_lines:
+            return
+        language_attr = f' data-lang="{html.escape(code_block_lang, quote=True)}"' if code_block_lang else ""
+        content = html.escape("\n".join(code_block_lines), quote=False)
+        html_parts.append(f"<pre{language_attr}><code>{content}</code></pre>")
+        code_block_lines = []
+        code_block_lang = ""
+
+    def flush_quote():
+        nonlocal quote_lines
+        if not quote_lines:
+            return
+        merged_text = " ".join(line.strip() for line in quote_lines if line.strip())
+        content = format_summary_inline_markdown(merged_text)
+        html_parts.append(f"<blockquote><p>{content}</p></blockquote>")
+        quote_lines = []
+
     for raw_line in lines:
         line = raw_line.rstrip()
         stripped = line.strip()
 
+        fence_match = re.match(r"^```([\w+-]*)\s*$", stripped)
+        if fence_match:
+            flush_paragraph()
+            close_list()
+            flush_quote()
+            if code_block_lines:
+                flush_code_block()
+            else:
+                code_block_lang = fence_match.group(1).strip()
+            continue
+
+        if code_block_lines or code_block_lang:
+            code_block_lines.append(line)
+            continue
+
         if not stripped:
             flush_paragraph()
             close_list()
+            flush_quote()
             continue
 
-        heading_match = re.match(r"^(#{1,3})\s+(.*)$", stripped)
+        if re.match(r"^([-*_])\1{2,}\s*$", stripped):
+            flush_paragraph()
+            close_list()
+            flush_quote()
+            html_parts.append("<hr>")
+            continue
+
+        quote_match = re.match(r"^>\s?(.*)$", stripped)
+        if quote_match:
+            flush_paragraph()
+            close_list()
+            quote_lines.append(quote_match.group(1))
+            continue
+        flush_quote()
+
+        heading_match = re.match(r"^(#{1,4})\s+(.*)$", stripped)
         if heading_match:
             flush_paragraph()
             close_list()
@@ -513,7 +617,42 @@ def render_summary_markdown(markdown_text: str) -> str:
 
     flush_paragraph()
     close_list()
+    flush_quote()
+    flush_code_block()
     return "".join(html_parts)
+
+
+def enhance_markdown_html(rendered_html: str) -> str:
+    rendered_html = re.sub(
+        r'<a href="(https?://[^"]+)"',
+        r'<a href="\1" target="_blank" rel="noopener"',
+        rendered_html,
+    )
+    return rendered_html
+
+
+def render_summary_markdown(markdown_text: str) -> str:
+    """优先使用 python-markdown 渲染，缺失时回退到轻量渲染。"""
+    if not markdown_text:
+        return ""
+
+    normalized_text = markdown_text.replace("\r\n", "\n").strip()
+    if not normalized_text:
+        return ""
+
+    if python_markdown is None:
+        return render_basic_markdown(normalized_text)
+
+    rendered_html = python_markdown.markdown(
+        normalized_text,
+        extensions=[
+            "extra",
+            "sane_lists",
+            "toc",
+        ],
+        output_format="html5",
+    )
+    return enhance_markdown_html(rendered_html)
 
 
 def load_summary_response(json_path: Optional[Path]):
@@ -551,6 +690,40 @@ def load_summary_response(json_path: Optional[Path]):
     return rendered
 
 
+def load_analysis_response(paper_url: str):
+    if not paper_url:
+        return None
+
+    analysis_path = get_analysis_output_path(paper_url)
+    if not analysis_path.exists():
+        return None
+    analysis_mtime = get_file_mtime(analysis_path)
+    if analysis_mtime is None:
+        return None
+
+    cache_key = str(analysis_path)
+    with ANALYSIS_CACHE_LOCK:
+        cached = ANALYSIS_CACHE.get(cache_key)
+        if cached and cached["mtime"] == analysis_mtime:
+            return cached["data"]
+
+    analysis_data = read_json_file(analysis_path)
+    if analysis_data is None:
+        return None
+
+    response_text = (analysis_data.get("response") or "").strip()
+    rendered = {
+        "path": str(analysis_path),
+        "paper_url": (analysis_data.get("paper_url") or "").strip(),
+        "generated_at": (analysis_data.get("generated_at") or "").strip(),
+        "response": response_text,
+        "response_html": render_summary_markdown(response_text),
+    }
+    with ANALYSIS_CACHE_LOCK:
+        ANALYSIS_CACHE[cache_key] = {"mtime": analysis_mtime, "data": rendered}
+    return rendered
+
+
 def build_summary_status(summary_response, expected_question: str, is_generating: bool):
     saved_question = (summary_response or {}).get("user_question", "").strip() if summary_response else ""
     response_text = (summary_response or {}).get("response", "").strip() if summary_response else ""
@@ -570,6 +743,21 @@ def build_summary_status(summary_response, expected_question: str, is_generating
         "needs_generation": needs_generation,
         "reason": reason,
         "expected_question": expected_question,
+        "is_generating": is_generating,
+    }
+
+
+def build_analysis_status(analysis_response, is_generating: bool):
+    response_text = (analysis_response or {}).get("response", "").strip() if analysis_response else ""
+    has_analysis = bool(analysis_response)
+    has_response = bool(response_text)
+    needs_generation = (not has_analysis) or (not has_response)
+    reason = "正在分析" if is_generating else ("生成分析" if needs_generation else "已生成")
+    return {
+        "has_analysis": has_analysis,
+        "has_response": has_response,
+        "needs_generation": needs_generation,
+        "reason": reason,
         "is_generating": is_generating,
     }
 
@@ -943,6 +1131,16 @@ def load_papers(
         if selected_paper and selected_paper not in papers:
             selected_paper = None
 
+    analysis_response = None
+    analysis_status = build_analysis_status(None, False)
+    if selected_paper:
+        paper_url = get_paper_id(selected_paper)
+        analysis_response = load_analysis_response(paper_url)
+        analysis_status = build_analysis_status(
+            analysis_response,
+            is_analysis_generating(paper_url),
+        )
+
     view_month_value = view_month or (resolved_date[:7] if resolved_date else None)
     related_papers = build_related_papers(
         papers,
@@ -1006,6 +1204,8 @@ def load_papers(
         "source_path": str(json_path),
         "summary_response": summary_response,
         "summary_status": summary_status,
+        "analysis_response": analysis_response,
+        "analysis_status": analysis_status,
     }
 
 
@@ -1191,6 +1391,43 @@ def generate_summary():
 
     if not is_summary_generating(source_path):
         Thread(target=run_summary_generation, args=(source_path,), daemon=True).start()
+
+    return redirect(redirect_url)
+
+
+@app.route("/generate-analysis", methods=["POST"])
+def generate_analysis():
+    path = request.form.get("path")
+    selected_date = request.form.get("date")
+    selected_tags = request.form.getlist("tag")
+    view_month = request.form.get("month")
+    lang = request.form.get("lang", "zh")
+    search_query = request.form.get("query", "")
+    paper_url = (request.form.get("paper_url") or "").strip()
+
+    redirect_url = build_query_string(
+        date=selected_date,
+        tags=selected_tags,
+        view_month=view_month,
+        path=path,
+        lang=lang,
+        paper=paper_url,
+        query=search_query,
+    )
+
+    if not paper_url:
+        return redirect(redirect_url)
+
+    if path:
+        source_path = Path(path)
+    else:
+        source_path, _, _ = find_papers_path(selected_date)
+
+    if not source_path or not source_path.exists():
+        return redirect(redirect_url)
+
+    if not is_analysis_generating(paper_url):
+        Thread(target=run_analysis_generation, args=(source_path, paper_url), daemon=True).start()
 
     return redirect(redirect_url)
 
