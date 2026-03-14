@@ -405,6 +405,10 @@
             color: inherit;
         }
 
+        .paper-card-link[hidden] {
+            display: none !important;
+        }
+
         .summary-panel {
             margin-bottom: 1.25rem;
             padding: 1.15rem 1.25rem;
@@ -593,6 +597,80 @@
             border-radius: 999px;
         }
 
+        .search-panel {
+            margin-bottom: 1rem;
+            padding: 1rem 1.1rem;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+        }
+
+        .search-form {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .search-input {
+            flex: 1;
+            min-width: 15rem;
+            padding: 0.8rem 0.95rem;
+            border: 1px solid #d6e6ff;
+            border-radius: 12px;
+            background: #fbfdff;
+            color: var(--text-primary);
+            font-size: 0.92rem;
+            outline: none;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .search-input:focus {
+            border-color: #7db3ff;
+            box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.12);
+        }
+
+        .search-button,
+        .search-clear {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.78rem 1rem;
+            border-radius: 10px;
+            font-size: 0.86rem;
+            font-weight: 700;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .search-button {
+            border: 1px solid #b6d3ff;
+            background: #0969da;
+            color: #fff;
+        }
+
+        .search-button:hover {
+            background: #0550ae;
+            border-color: #0550ae;
+        }
+
+        .search-clear {
+            border: 1px solid #d6e6ff;
+            background: #eef5ff;
+            color: var(--text-primary);
+        }
+
+        .search-clear:hover {
+            background: var(--bg-hover);
+        }
+
+        .search-hint {
+            margin-top: 0.7rem;
+            color: var(--text-secondary);
+            font-size: 0.83rem;
+        }
+
         @media (max-width: 900px) {
             .layout {
                 grid-template-columns: 1fr;
@@ -620,6 +698,16 @@
             .balance-chip {
                 position: static;
                 margin: 0.75rem auto 0;
+            }
+
+            .search-form {
+                align-items: stretch;
+            }
+
+            .search-input,
+            .search-button,
+            .search-clear {
+                width: 100%;
             }
         }
     </style>
@@ -725,17 +813,17 @@
             <main class="content">
                 <div class="meta-row">
                     <span>当前日期：{{ papers_data.selected_date or "未找到数据" }}</span>
-                    <span>当前数量：{{ papers_data.total_num }} 篇</span>
+                    <span>当前数量：<span id="paper-total-count">{{ papers_data.total_num }}</span> 篇</span>
                     <span class="lang-switch" aria-label="language switch">
                         <a
                             class="lang-switch-option {% if papers_data.lang == 'zh' %}active{% endif %}"
-                            href="/?date={{ papers_data.selected_date }}{% for tag in papers_data.selected_tags %}&tag={{ tag }}{% endfor %}{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}&month={{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}{% if papers_data.source_path %}&path={{ papers_data.source_path }}{% endif %}&lang=zh"
+                            href="/?date={{ papers_data.selected_date }}{% for tag in papers_data.selected_tags %}&tag={{ tag }}{% endfor %}{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}&month={{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}{% if papers_data.source_path %}&path={{ papers_data.source_path | urlencode }}{% endif %}{% if papers_data.search_query %}&query={{ papers_data.search_query | urlencode }}{% endif %}&lang=zh"
                         >
                             中文
                         </a>
                         <a
                             class="lang-switch-option {% if papers_data.lang == 'en' %}active{% endif %}"
-                            href="/?date={{ papers_data.selected_date }}{% for tag in papers_data.selected_tags %}&tag={{ tag }}{% endfor %}{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}&month={{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}{% if papers_data.source_path %}&path={{ papers_data.source_path }}{% endif %}&lang=en"
+                            href="/?date={{ papers_data.selected_date }}{% for tag in papers_data.selected_tags %}&tag={{ tag }}{% endfor %}{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}&month={{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}{% if papers_data.source_path %}&path={{ papers_data.source_path | urlencode }}{% endif %}{% if papers_data.search_query %}&query={{ papers_data.search_query | urlencode }}{% endif %}&lang=en"
                         >
                             EN
                         </a>
@@ -743,6 +831,7 @@
                     {% if papers_data.selected_tags %}
                     <span>已筛选标签：{{ papers_data.selected_tags | join("、") }}</span>
                     {% endif %}
+                    <span id="paper-search-label" {% if not papers_data.search_query %}hidden{% endif %}>名称搜索：<span id="paper-search-label-value">{{ papers_data.search_query }}</span></span>
                 </div>
 
                 <section class="summary-panel">
@@ -756,6 +845,7 @@
                                 <input type="hidden" name="month" value="{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}{{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}">
                                 <input type="hidden" name="path" value="{{ papers_data.source_path or '' }}">
                                 <input type="hidden" name="lang" value="{{ papers_data.lang }}">
+                                <input type="hidden" name="query" value="{{ papers_data.search_query }}">
                                 {% for tag in papers_data.selected_tags %}
                                 <input type="hidden" name="tag" value="{{ tag }}">
                                 {% endfor %}
@@ -767,6 +857,7 @@
                                 <input type="hidden" name="month" value="{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}{{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}">
                                 <input type="hidden" name="path" value="{{ papers_data.source_path or '' }}">
                                 <input type="hidden" name="lang" value="{{ papers_data.lang }}">
+                                <input type="hidden" name="query" value="{{ papers_data.search_query }}">
                                 {% for tag in papers_data.selected_tags %}
                                 <input type="hidden" name="tag" value="{{ tag }}">
                                 {% endfor %}
@@ -794,9 +885,46 @@
                     {% endif %}
                 </section>
 
+                <section class="search-panel">
+                    <form class="search-form" id="paper-search-form" method="get" action="/">
+                        <input type="hidden" name="date" value="{{ papers_data.selected_date or '' }}">
+                        <input type="hidden" name="month" value="{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}{{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}">
+                        <input type="hidden" name="path" value="{{ papers_data.source_path or '' }}">
+                        <input type="hidden" name="lang" value="{{ papers_data.lang }}">
+                        {% for tag in papers_data.selected_tags %}
+                        <input type="hidden" name="tag" value="{{ tag }}">
+                        {% endfor %}
+                        <input
+                            id="paper-search-input"
+                            class="search-input"
+                            type="search"
+                            name="query"
+                            value="{{ papers_data.search_query }}"
+                            placeholder="搜索论文名称，支持中文或 English title"
+                        >
+                        <button class="search-button" type="submit">搜索名称</button>
+                        <a
+                            id="paper-search-clear"
+                            class="search-clear"
+                            {% if not papers_data.search_query %}hidden{% endif %}
+                            href="/?date={{ papers_data.selected_date }}{% for tag in papers_data.selected_tags %}&tag={{ tag }}{% endfor %}{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}&month={{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}{% if papers_data.source_path %}&path={{ papers_data.source_path | urlencode }}{% endif %}&lang={{ papers_data.lang }}"
+                        >
+                            清除搜索
+                        </a>
+                    </form>
+                    <div class="search-hint">按论文标题匹配，会同时检索英文标题和中文标题。</div>
+                </section>
+
                 {% if papers_data.papers %}
+                    <div id="paper-list">
                     {% for paper in papers_data.papers %}
-                    <a class="paper-card-link" href="{{ paper.detail_href }}">
+                    <a
+                        class="paper-card-link"
+                        href="{{ paper.detail_href }}"
+                        data-search-card
+                        data-title-en="{{ paper.title or '' }}"
+                        data-title-zh="{{ paper.title_zh or '' }}"
+                    >
                         <article class="paper-card">
                             <h2 class="paper-title">
                                 {% if papers_data.lang == "en" %}
@@ -823,6 +951,11 @@
                         </article>
                     </a>
                     {% endfor %}
+                    </div>
+                    <div class="empty-state" id="paper-search-empty" hidden>
+                        <p>未找到匹配论文</p>
+                        <p>请尝试更短的关键词，或切换中英文标题搜索</p>
+                    </div>
                 {% else %}
                     <div class="empty-state">
                         <p>暂无论文数据</p>
@@ -832,5 +965,109 @@
             </main>
         </div>
     </div>
+    <script>
+        (function () {
+            const form = document.getElementById("paper-search-form");
+            const input = document.getElementById("paper-search-input");
+            const clearLink = document.getElementById("paper-search-clear");
+            const cards = Array.from(document.querySelectorAll("[data-search-card]"));
+            const totalCount = document.getElementById("paper-total-count");
+            const searchEmpty = document.getElementById("paper-search-empty");
+            const searchLabel = document.getElementById("paper-search-label");
+            const searchLabelValue = document.getElementById("paper-search-label-value");
+            const queryInputs = Array.from(document.querySelectorAll('input[name="query"]'));
+
+            if (!form || !input) {
+                return;
+            }
+
+            let isComposing = false;
+            let lastAppliedValue = null;
+
+            function updateQueryInUrl(value) {
+                const url = new URL(window.location.href);
+                if (value) {
+                    url.searchParams.set("query", value);
+                } else {
+                    url.searchParams.delete("query");
+                }
+                history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+            }
+
+            function applySearch(rawValue) {
+                const nextValue = rawValue.trim();
+                if (nextValue === lastAppliedValue) {
+                    return;
+                }
+                lastAppliedValue = nextValue;
+
+                const keyword = nextValue.toLocaleLowerCase();
+                let visibleCount = 0;
+
+                cards.forEach(function (card) {
+                    const titleEn = (card.dataset.titleEn || "").toLocaleLowerCase();
+                    const titleZh = (card.dataset.titleZh || "").toLocaleLowerCase();
+                    const matched = !keyword || titleEn.includes(keyword) || titleZh.includes(keyword);
+                    card.hidden = !matched;
+                    if (matched) {
+                        visibleCount += 1;
+                    }
+                });
+
+                if (totalCount) {
+                    totalCount.textContent = String(visibleCount);
+                }
+                if (searchEmpty) {
+                    searchEmpty.hidden = visibleCount !== 0;
+                }
+                if (searchLabel && searchLabelValue) {
+                    searchLabel.hidden = !nextValue;
+                    searchLabelValue.textContent = nextValue;
+                }
+                if (clearLink) {
+                    clearLink.hidden = !nextValue;
+                }
+                queryInputs.forEach(function (queryInput) {
+                    queryInput.value = nextValue;
+                });
+                updateQueryInUrl(nextValue);
+            }
+
+            input.addEventListener("compositionstart", function () {
+                isComposing = true;
+            });
+
+            input.addEventListener("compositionend", function () {
+                isComposing = false;
+                applySearch(input.value);
+            });
+
+            input.addEventListener("input", function () {
+                if (isComposing) {
+                    return;
+                }
+                applySearch(input.value);
+            });
+
+            input.addEventListener("search", function () {
+                applySearch(input.value);
+            });
+
+            form.addEventListener("submit", function (event) {
+                event.preventDefault();
+                applySearch(input.value);
+            });
+            if (clearLink) {
+                clearLink.addEventListener("click", function (event) {
+                    event.preventDefault();
+                    input.value = "";
+                    applySearch("");
+                    input.focus();
+                });
+            }
+
+            applySearch(input.value);
+        })();
+    </script>
 </body>
 </html>

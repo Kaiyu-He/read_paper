@@ -425,7 +425,7 @@
         <div class="layout">
             <aside class="sidebar">
                 <div class="sidebar-top-action">
-                    <a class="toolbar-button" href="/?date={{ papers_data.selected_date }}{% for tag in papers_data.selected_tags %}&tag={{ tag }}{% endfor %}{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}&month={{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}{% if papers_data.source_path %}&path={{ papers_data.source_path }}{% endif %}&lang={{ papers_data.lang }}">返回主页</a>
+                    <a class="toolbar-button" href="/?date={{ papers_data.selected_date }}{% for tag in papers_data.selected_tags %}&tag={{ tag }}{% endfor %}{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}&month={{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}{% if papers_data.source_path %}&path={{ papers_data.source_path | urlencode }}{% endif %}{% if papers_data.search_query %}&query={{ papers_data.search_query | urlencode }}{% endif %}&lang={{ papers_data.lang }}">返回主页</a>
                 </div>
 
                 <section class="panel">
@@ -462,8 +462,8 @@
             <main class="content">
                 <div class="meta-row">
                     <span class="lang-switch" aria-label="language switch">
-                        <a class="lang-switch-option {% if papers_data.lang == 'zh' %}active{% endif %}" href="/?date={{ papers_data.selected_date }}{% for tag in papers_data.selected_tags %}&tag={{ tag }}{% endfor %}{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}&month={{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}{% if papers_data.source_path %}&path={{ papers_data.source_path }}{% endif %}&paper={{ papers_data.selected_paper.url }}&lang=zh">中文</a>
-                        <a class="lang-switch-option {% if papers_data.lang == 'en' %}active{% endif %}" href="/?date={{ papers_data.selected_date }}{% for tag in papers_data.selected_tags %}&tag={{ tag }}{% endfor %}{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}&month={{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}{% if papers_data.source_path %}&path={{ papers_data.source_path }}{% endif %}&paper={{ papers_data.selected_paper.url }}&lang=en">EN</a>
+                        <a class="lang-switch-option {% if papers_data.lang == 'zh' %}active{% endif %}" href="/?date={{ papers_data.selected_date }}{% for tag in papers_data.selected_tags %}&tag={{ tag }}{% endfor %}{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}&month={{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}{% if papers_data.source_path %}&path={{ papers_data.source_path | urlencode }}{% endif %}{% if papers_data.search_query %}&query={{ papers_data.search_query | urlencode }}{% endif %}&paper={{ papers_data.selected_paper.url | urlencode }}&lang=zh">中文</a>
+                        <a class="lang-switch-option {% if papers_data.lang == 'en' %}active{% endif %}" href="/?date={{ papers_data.selected_date }}{% for tag in papers_data.selected_tags %}&tag={{ tag }}{% endfor %}{% if papers_data.calendar_data.year and papers_data.calendar_data.month %}&month={{ '%04d-%02d'|format(papers_data.calendar_data.year, papers_data.calendar_data.month) }}{% endif %}{% if papers_data.source_path %}&path={{ papers_data.source_path | urlencode }}{% endif %}{% if papers_data.search_query %}&query={{ papers_data.search_query | urlencode }}{% endif %}&paper={{ papers_data.selected_paper.url | urlencode }}&lang=en">EN</a>
                     </span>
                     {% if papers_data.selected_tags %}
                     <span>已筛选标签：{{ papers_data.selected_tags | join("、") }}</span>

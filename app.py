@@ -106,7 +106,7 @@ def date_label_from_parts(year: str, month: str, day: str) -> str:
     return f"{int(year):04d}-{int(month):02d}-{int(day):02d}"
 
 
-def build_query_string(date=None, tags=None, view_month=None, path=None, lang=None, paper=None):
+def build_query_string(date=None, tags=None, view_month=None, path=None, lang=None, paper=None, query=None):
     params = []
     if date:
         params.append(("date", date))
@@ -121,6 +121,8 @@ def build_query_string(date=None, tags=None, view_month=None, path=None, lang=No
         params.append(("lang", lang))
     if paper:
         params.append(("paper", paper))
+    if query:
+        params.append(("query", query))
     query = urlencode(params, doseq=True)
     return f"/?{query}" if query else "/"
 
@@ -304,7 +306,7 @@ def build_summary_status(summary_response, expected_question: str, is_generating
     }
 
 
-def build_related_papers(papers, selected_paper, selected_date, selected_tags, view_month, source_path, lang):
+def build_related_papers(papers, selected_paper, selected_date, selected_tags, view_month, source_path, lang, search_query=""):
     if not selected_paper:
         return []
 
@@ -336,13 +338,23 @@ def build_related_papers(papers, selected_paper, selected_date, selected_tags, v
                     path=source_path,
                     lang=lang,
                     paper=get_paper_id(paper),
+                    query=search_query,
                 ),
             }
         )
     return related
 
 
-def build_tag_filter_data(all_tags, selected_tags, selected_date, source_path, view_month, lang, selected_paper=None):
+def build_tag_filter_data(
+    all_tags,
+    selected_tags,
+    selected_date,
+    source_path,
+    view_month,
+    lang,
+    selected_paper=None,
+    search_query="",
+):
     filters = [
         {
             "name": "全部",
@@ -353,6 +365,7 @@ def build_tag_filter_data(all_tags, selected_tags, selected_date, source_path, v
                 path=source_path,
                 lang=lang,
                 paper=selected_paper,
+                query=search_query,
             ),
         }
     ]
@@ -371,6 +384,7 @@ def build_tag_filter_data(all_tags, selected_tags, selected_date, source_path, v
                     path=source_path,
                     lang=lang,
                     paper=selected_paper,
+                    query=search_query,
                 ),
             }
         )
@@ -385,6 +399,7 @@ def build_calendar_data(
     view_month=None,
     lang="zh",
     selected_paper=None,
+    search_query="",
 ):
     """根据可用日期构造月视图日历。"""
     if not date_values:
@@ -438,6 +453,7 @@ def build_calendar_data(
                     path=source_path,
                     lang=lang,
                     paper=selected_paper,
+                    query=search_query,
                 ),
             }
         )
@@ -469,6 +485,7 @@ def build_calendar_data(
             path=source_path,
             lang=lang,
             paper=selected_paper,
+            query=search_query,
         )
     if 0 <= year_index < len(available_years) - 1:
         next_year = available_years[year_index + 1]
@@ -482,6 +499,7 @@ def build_calendar_data(
             path=source_path,
             lang=lang,
             paper=selected_paper,
+            query=search_query,
         )
     if month_index > 0:
         prev_month = available_months_in_year[month_index - 1]
@@ -492,6 +510,7 @@ def build_calendar_data(
             path=source_path,
             lang=lang,
             paper=selected_paper,
+            query=search_query,
         )
     if 0 <= month_index < len(available_months_in_year) - 1:
         next_month = available_months_in_year[month_index + 1]
@@ -502,6 +521,7 @@ def build_calendar_data(
             path=source_path,
             lang=lang,
             paper=selected_paper,
+            query=search_query,
         )
 
     return {
@@ -572,11 +592,20 @@ def find_papers_path(selected_date=None):
     return None, available_dates, target_value
 
 
-def load_papers(path=None, selected_date=None, selected_tags=None, view_month=None, lang="zh", selected_paper_id=None):
+def load_papers(
+    path=None,
+    selected_date=None,
+    selected_tags=None,
+    view_month=None,
+    lang="zh",
+    selected_paper_id=None,
+    search_query="",
+):
     """加载论文数据，并提供日期/标签筛选所需元数据。"""
     available_dates = list_available_dates()
     resolved_date = selected_date
     selected_tags = [tag for tag in (selected_tags or []) if tag]
+    search_query = (search_query or "").strip()
     api_balance = get_api_balance()
     summary_question = get_summary_question()
 
@@ -600,6 +629,7 @@ def load_papers(path=None, selected_date=None, selected_tags=None, view_month=No
             view_month=view_month,
             lang=lang,
             selected_paper=selected_paper_id,
+            search_query=search_query,
         ),
         "selected_tags": selected_tags,
         "tag_filters": [],
@@ -611,6 +641,7 @@ def load_papers(path=None, selected_date=None, selected_tags=None, view_month=No
         "summary_response": None,
         "summary_status": build_summary_status(None, summary_question, False),
         "summary_question": summary_question,
+        "search_query": search_query,
     }
 
     if not json_path or not json_path.exists():
@@ -661,6 +692,7 @@ def load_papers(path=None, selected_date=None, selected_tags=None, view_month=No
         view_month_value,
         str(json_path),
         lang,
+        search_query,
     )
 
     return {
@@ -675,6 +707,7 @@ def load_papers(path=None, selected_date=None, selected_tags=None, view_month=No
                     path=str(json_path),
                     lang=lang,
                     paper=get_paper_id(paper),
+                    query=search_query,
                 ),
             }
             for paper in papers
@@ -690,6 +723,7 @@ def load_papers(path=None, selected_date=None, selected_tags=None, view_month=No
             view_month=view_month,
             lang=lang,
             selected_paper=selected_paper_id,
+            search_query=search_query,
         ),
         "selected_tags": selected_tags,
         "tag_filters": build_tag_filter_data(
@@ -700,6 +734,7 @@ def load_papers(path=None, selected_date=None, selected_tags=None, view_month=No
             view_month_value,
             lang,
             selected_paper_id,
+            search_query,
         ),
         "lang": lang,
         "selected_paper": selected_paper,
@@ -709,6 +744,7 @@ def load_papers(path=None, selected_date=None, selected_tags=None, view_month=No
         "summary_response": summary_response,
         "summary_status": summary_status,
         "summary_question": summary_question,
+        "search_query": search_query,
     }
 
 
@@ -726,6 +762,7 @@ def index():
     view_month = request.args.get("month")
     lang = request.args.get("lang", "zh")
     selected_paper_id = request.args.get("paper")
+    search_query = request.args.get("query", "")
     if lang not in {"zh", "en"}:
         lang = "zh"
     papers_data = load_papers(
@@ -735,6 +772,7 @@ def index():
         view_month=view_month,
         lang=lang,
         selected_paper_id=selected_paper_id,
+        search_query=search_query,
     )
     template_name = "paper.html" if papers_data.get("selected_paper") else "index.html"
     return render_template(template_name, papers_data=papers_data)
@@ -747,6 +785,7 @@ def generate_summary():
     selected_tags = request.form.getlist("tag")
     view_month = request.form.get("month")
     lang = request.form.get("lang", "zh")
+    search_query = request.form.get("query", "")
 
     redirect_url = build_query_string(
         date=selected_date,
@@ -754,6 +793,7 @@ def generate_summary():
         view_month=view_month,
         path=path,
         lang=lang,
+        query=search_query,
     )
 
     if path:
