@@ -18,17 +18,31 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 PROMPT_DIR = BASE_DIR / "prompt"
 
 
+def parse_areas(area_value):
+    if isinstance(area_value, list):
+        areas = [str(item).strip() for item in area_value if str(item).strip()]
+    else:
+        areas = [item.strip() for item in str(area_value or "RO").split(",") if item.strip()]
+    return areas or ["RO"]
+
+
 def find_papers_path(path=None):
     """查找 papers.json 路径"""
     if path:
         return Path(path)
     save_path = get("file.save_path")
+    areas = parse_areas(get("file.area", "RO"))
     file_dir = resolve_path(save_path)
     
     today = datetime.now()
-    json_path = file_dir / str(today.year) / str(today.month) / str(today.day) / "papers.json"
-    if json_path.exists():
-        return json_path
+    today_dir = file_dir / str(today.year) / str(today.month) / str(today.day)
+    preferred_paths = []
+    for area_name in areas:
+        preferred_paths.append(today_dir / area_name / "papers.json")
+    preferred_paths.append(today_dir / "papers.json")
+    for json_path in preferred_paths:
+        if json_path.exists():
+            return json_path
     # 今日目录不存在时，使用最新的 papers.json
     papers_files = list(file_dir.rglob("papers.json"))
     return max(papers_files, key=lambda p: p.stat().st_mtime) if papers_files else None

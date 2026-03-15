@@ -11,15 +11,25 @@ from pathlib import Path
 from threading import Lock, Thread
 from time import time
 from typing import Optional
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
-from flask import Flask, redirect, render_template, request
+from flask import Flask, redirect, render_template, request, session
 try:
     import markdown as python_markdown
 except ImportError:
     python_markdown = None
 
-from config import get, resolve_path
+from config import (
+    authenticate_user,
+    get,
+    get_config_path,
+    get_current_username,
+    load_config,
+    register_user,
+    resolve_path,
+    update_user_config,
+    use_active_username,
+)
 from model.api import load_model
 from process_file.analysis_paper import analysis_paper, get_analysis_output_path
 from process_file.load_papers import download_papers_today
@@ -27,6 +37,7 @@ from process_file.summary_all_papers import summary_all_papers
 from process_file.translate_title_abstract import get_pending_translation_count, translate_papers
 
 app = Flask(__name__, template_folder="ui")
+app.secret_key = get("ui.secret_key", "read-paper-dev-secret", username="hekaiyu")
 AUTO_LOAD_LOCK = Lock()
 AUTO_LOAD_DONE_DATE = None
 AUTO_LOAD_RUNNING_DATE = None
@@ -87,6 +98,23 @@ def get_balance_cache_value():
 def get_today_dir(now=None):
     now = now or datetime.now()
     return get_file_dir() / str(now.year) / str(now.month) / str(now.day)
+
+
+def get_area_names():
+    raw_area = get("file.area", "RO")
+    if isinstance(raw_area, list):
+        areas = [str(item).strip() for item in raw_area if str(item).strip()]
+    else:
+        areas = [item.strip() for item in str(raw_area or "RO").split(",") if item.strip()]
+    return areas or ["RO"]
+
+
+def get_area_name() -> str:
+    return get_area_names()[0]
+
+
+def get_area_dir(day_dir: Path, area_name: Optional[str] = None) -> Path:
+    return day_dir / (area_name or get_area_name())
 
 
 def read_json_file(json_path: Path):
@@ -195,11 +223,57 @@ def get_current_request_url() -> str:
     return f"{request.path}?{query_string}" if query_string else request.path
 
 
+def pop_auth_feedback():
+    return {
+        "auth_error": session.pop("auth_error", ""),
+        "auth_notice": session.pop("auth_notice", ""),
+        "auth_mode": session.pop("auth_mode", "login"),
+        "auth_popup_open": bool(session.pop("auth_popup_open", False)),
+    }
+
+
+def store_auth_feedback(error="", notice="", mode="login", open_popup=False):
+    if error:
+        session["auth_error"] = error
+    else:
+        session.pop("auth_error", None)
+
+    if notice:
+        session["auth_notice"] = notice
+    else:
+        session.pop("auth_notice", None)
+
+    session["auth_mode"] = mode if mode in {"login", "register"} else "login"
+    session["auth_popup_open"] = bool(open_popup)
+
+
+def clear_auth_feedback():
+    session.pop("auth_error", None)
+    session.pop("auth_notice", None)
+    session.pop("auth_mode", None)
+    session.pop("auth_popup_open", None)
+
+
+def resolve_redirect_to(redirect_to: str, lang: str, fallback_path="/settings"):
+    fallback = build_query_string(base_path=fallback_path, lang=lang)
+    redirect_to = (redirect_to or "").strip()
+    if not redirect_to:
+        return fallback
+    parsed = urlparse(redirect_to)
+    if parsed.scheme or parsed.netloc:
+        return fallback
+    if not redirect_to.startswith("/"):
+        return fallback
+    return redirect_to
+
+
 def infer_source_date(source_path: Optional[Path]) -> str:
     if not source_path:
         return ""
     try:
         day_dir = source_path.parent
+        if day_dir.name in set(get_area_names()):
+            day_dir = day_dir.parent
         return date_label_from_parts(day_dir.parent.parent.name, day_dir.parent.name, day_dir.name)
     except (ValueError, AttributeError, IndexError):
         return ""
@@ -291,6 +365,8 @@ def find_paper_in_source(source_path: Optional[Path], paper_url: str):
 
 
 def build_base_page_data(lang: str, search_query: str, view: str):
+    current_username = get_current_username()
+    auth_feedback = pop_auth_feedback()
     return {
         "lang": lang,
         "api_balance": get_balance_cache_value(),
@@ -302,49 +378,127 @@ def build_base_page_data(lang: str, search_query: str, view: str):
         "view": view,
         "home_href": build_query_string(lang=lang),
         "favorites_href": build_query_string(base_path="/favorites", lang=lang),
+        "settings_href": build_query_string(base_path="/settings", lang=lang),
+        "login_href": build_query_string(base_path="/login", lang=lang),
+        "register_href": build_query_string(base_path="/register", lang=lang),
+        "logout_href": build_query_string(base_path="/logout", lang=lang),
+        "is_authenticated": bool(session.get("username")),
+        "current_username": current_username,
+        "config_path": str(get_config_path(current_username)),
+        **auth_feedback,
+    }
+
+
+def build_settings_data(lang="zh"):
+    page_data = build_base_page_data(lang, "", "settings")
+    current_config = load_config()
+    model_cfg = current_config.get("model", {}) if isinstance(current_config, dict) else {}
+    file_cfg = current_config.get("file", {}) if isinstance(current_config, dict) else {}
+    ui_cfg = current_config.get("ui", {}) if isinstance(current_config, dict) else {}
+    summary_cfg = current_config.get("summary", {}) if isinstance(current_config, dict) else {}
+    model_options = ["deepseek-chat", "deepseek-reasoner"]
+    current_model = str(model_cfg.get("model", "") or "deepseek-chat")
+    if current_model not in model_options:
+        current_model = "deepseek-chat"
+    settings_items = [
+        {
+            "label": "当前用户",
+            "value": page_data["current_username"],
+        },
+        {
+            "label": "模型",
+            "value": current_model or "未设置",
+        },
+        {
+            "label": "总结关注问题",
+            "value": get_summary_question() or "未设置",
+        },
+        {
+            "label": "调试模式",
+            "value": "开启" if get("ui.debug", True) else "关闭",
+        },
+    ]
+    settings_form = {
+        "model_api_key": "",
+        "model_model": current_model,
+        "summary_user_question": str(summary_cfg.get("user_question", "") or ""),
+        "file_area": str(file_cfg.get("area", "") or ""),
+        "ui_debug": bool(ui_cfg.get("debug", True)),
+    }
+    return {
+        **page_data,
+        "settings_items": settings_items,
+        "settings_form": settings_form,
+        "model_options": model_options,
+        "settings_error": "",
+        "settings_notice": "",
     }
 
 
 def resolve_non_empty_papers_path(day_dir: Path):
-    preferred = day_dir / "papers_zh.json"
-    fallback = day_dir / "papers.json"
-    if has_papers_content(preferred):
-        return preferred
-    if has_papers_content(fallback):
-        return fallback
+    candidates = []
+    for area_name in get_area_names():
+        area_dir = get_area_dir(day_dir, area_name)
+        candidates.extend([
+            area_dir / "papers_zh.json",
+            area_dir / "papers.json",
+        ])
+    candidates.extend([
+        day_dir / "papers_zh.json",
+        day_dir / "papers.json",
+    ])
+    for candidate in candidates:
+        if has_papers_content(candidate):
+            return candidate
     return None
 
 
-def run_today_papers_ready(now: datetime, today_label: str):
+def run_today_papers_ready(now: datetime, today_label: str, username: str):
     global AUTO_LOAD_DONE_DATE, AUTO_LOAD_RUNNING_DATE
 
-    today_dir = get_today_dir(now)
-    papers_path = today_dir / "papers.json"
-    translation_path = today_dir / "papers_zh.json"
+    with use_active_username(username):
+        today_dir = get_today_dir(now)
+        area_names = get_area_names()
+        area_paths = [
+            (
+                area_name,
+                get_area_dir(today_dir, area_name) / "papers.json",
+                get_area_dir(today_dir, area_name) / "papers_zh.json",
+            )
+            for area_name in area_names
+        ]
 
-    try:
-        if not papers_path.exists():
-            print(f"{today_label} 12点后检测到今日论文未载入，开始自动抓取")
-            download_result = download_papers_today()
-            invalidate_available_dates_cache()
-            if download_result == -1:
+        try:
+            if not any(papers_path.exists() for _, papers_path, _ in area_paths):
+                print(f"{today_label} 12点后检测到今日论文未载入，开始自动抓取")
+                download_result = download_papers_today()
+                invalidate_available_dates_cache()
+                if download_result == -1:
+                    AUTO_LOAD_DONE_DATE = today_label
+                    return
+
+            has_existing = False
+            all_done = True
+            for area_name, papers_path, translation_path in area_paths:
+                if not papers_path.exists():
+                    continue
+                has_existing = True
+                pending_count = get_pending_translation_count(papers_path, translation_path)
+                if pending_count > 0:
+                    all_done = False
+                    print(f"{today_label} [{area_name}] 待翻译 {pending_count} 篇，开始自动翻译")
+                    translate_papers(str(papers_path))
+                    if get_pending_translation_count(papers_path, translation_path) > 0:
+                        all_done = False
+
+            if has_existing and all_done:
                 AUTO_LOAD_DONE_DATE = today_label
-                return
-
-        if papers_path.exists():
-            pending_count = get_pending_translation_count(papers_path, translation_path)
-            if pending_count > 0:
-                print(f"{today_label} 检测到今日论文待翻译 {pending_count} 篇，开始自动翻译")
-                translate_papers(str(papers_path))
-
-        if papers_path.exists() and get_pending_translation_count(papers_path, translation_path) == 0:
-            AUTO_LOAD_DONE_DATE = today_label
-    except Exception as exc:
-        print(f"今日论文自动补跑失败: {exc}")
-    finally:
-        with AUTO_LOAD_LOCK:
-            if AUTO_LOAD_RUNNING_DATE == today_label:
-                AUTO_LOAD_RUNNING_DATE = None
+        except Exception as exc:
+            print(f"今日论文自动补跑失败: {exc}")
+        finally:
+            with AUTO_LOAD_LOCK:
+                if AUTO_LOAD_RUNNING_DATE == today_label:
+                    AUTO_LOAD_RUNNING_DATE = None
 
 
 def ensure_today_papers_ready(now=None):
@@ -364,7 +518,7 @@ def ensure_today_papers_ready(now=None):
             return
         AUTO_LOAD_RUNNING_DATE = today_label
 
-    Thread(target=run_today_papers_ready, args=(now, today_label), daemon=True).start()
+    Thread(target=run_today_papers_ready, args=(now, today_label, get_current_username()), daemon=True).start()
 
 
 def date_label_from_parts(year: str, month: str, day: str) -> str:
@@ -461,10 +615,11 @@ def set_summary_generating(json_path: Optional[Path], generating: bool):
             SUMMARY_JOB_STATUS.pop(job_key, None)
 
 
-def run_summary_generation(source_path: Path):
+def run_summary_generation(source_path: Path, username: str):
     set_summary_generating(source_path, True)
     try:
-        summary_all_papers(path=str(source_path))
+        with use_active_username(username):
+            summary_all_papers(path=str(source_path))
     except Exception as exc:
         print(f"生成今日总结失败: {exc}")
     finally:
@@ -474,10 +629,11 @@ def run_summary_generation(source_path: Path):
         set_summary_generating(source_path, False)
 
 
-def run_analysis_generation(source_path: Path, paper_url: str):
+def run_analysis_generation(source_path: Path, paper_url: str, username: str):
     set_analysis_generating(paper_url, True)
     try:
-        analysis_paper(paper_url, str(source_path))
+        with use_active_username(username):
+            analysis_paper(paper_url, str(source_path))
     except Exception as exc:
         print(f"生成论文分析失败: {exc}")
     finally:
@@ -1305,6 +1461,133 @@ def favorites():
     return render_template("favorites.html", papers_data=papers_data)
 
 
+@app.route("/settings")
+def settings():
+    lang = request.args.get("lang", "zh")
+    if lang not in {"zh", "en"}:
+        lang = "zh"
+    return render_template("settings.html", papers_data=build_settings_data(lang))
+
+
+@app.route("/settings/save", methods=["POST"])
+def save_settings():
+    lang = request.form.get("lang", "zh")
+    if lang not in {"zh", "en"}:
+        lang = "zh"
+
+    current_username = get_current_username()
+    existing_api_key = str(get("model.api_key", "", username=current_username) or "")
+    api_key_input = (request.form.get("model_api_key") or "").strip()
+    model_name = (request.form.get("model_model") or "").strip()
+    summary_question = (request.form.get("summary_user_question") or "").strip()
+    file_area = (request.form.get("file_area") or "").strip()
+    ui_debug_raw = (request.form.get("ui_debug") or "").strip().lower()
+    draft_form = {
+        "model_api_key": api_key_input,
+        "model_model": model_name,
+        "summary_user_question": summary_question,
+        "file_area": file_area,
+        "ui_debug": ui_debug_raw in {"1", "true", "yes", "on"},
+    }
+
+    if not model_name:
+        page_data = build_settings_data(lang)
+        page_data["settings_form"] = draft_form
+        page_data["settings_error"] = "模型名称不能为空"
+        return render_template("settings.html", papers_data=page_data)
+
+    if not file_area:
+        page_data = build_settings_data(lang)
+        page_data["settings_form"] = draft_form
+        page_data["settings_error"] = "主题目录不能为空"
+        return render_template("settings.html", papers_data=page_data)
+
+    ui_debug = ui_debug_raw in {"1", "true", "yes", "on"}
+    final_api_key = api_key_input or existing_api_key
+
+    try:
+        update_user_config(
+            current_username,
+            {
+                "model.api_key": final_api_key,
+                "model.model": model_name,
+                "summary.user_question": summary_question,
+                "file.area": file_area,
+                "ui.debug": ui_debug,
+            },
+        )
+    except Exception as exc:
+        page_data = build_settings_data(lang)
+        page_data["settings_form"] = draft_form
+        page_data["settings_error"] = f"保存失败: {exc}"
+        return render_template("settings.html", papers_data=page_data)
+
+    page_data = build_settings_data(lang)
+    page_data["settings_notice"] = "设置已保存"
+    return render_template("settings.html", papers_data=page_data)
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    lang = request.args.get("lang", "zh") if request.method == "GET" else request.form.get("lang", "zh")
+    if lang not in {"zh", "en"}:
+        lang = "zh"
+
+    if request.method == "GET":
+        redirect_to = resolve_redirect_to(request.args.get("redirect_to"), lang)
+        store_auth_feedback(mode="login", open_popup=True)
+        return redirect(redirect_to)
+
+    redirect_to = resolve_redirect_to(request.form.get("redirect_to"), lang)
+    username = (request.form.get("username") or "").strip()
+    password = request.form.get("password") or ""
+
+    try:
+        authenticated = authenticate_user(username, password)
+    except ValueError as exc:
+        store_auth_feedback(error=str(exc), mode="login", open_popup=True)
+        return redirect(redirect_to)
+
+    if not authenticated:
+        store_auth_feedback(error="用户名或密码错误", mode="login", open_popup=True)
+        return redirect(redirect_to)
+
+    session["username"] = username
+    clear_auth_feedback()
+    return redirect(redirect_to)
+
+
+@app.route("/register", methods=["POST"])
+def register():
+    lang = request.form.get("lang", "zh")
+    username = (request.form.get("username") or "").strip()
+    password = request.form.get("password") or ""
+    if lang not in {"zh", "en"}:
+        lang = "zh"
+    redirect_to = resolve_redirect_to(request.form.get("redirect_to"), lang)
+
+    try:
+        register_user(username, password)
+    except ValueError as exc:
+        store_auth_feedback(error=str(exc), mode="login", open_popup=True)
+        return redirect(redirect_to)
+
+    session["username"] = username
+    clear_auth_feedback()
+    return redirect(redirect_to)
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    lang = request.form.get("lang", "zh")
+    if lang not in {"zh", "en"}:
+        lang = "zh"
+    redirect_to = resolve_redirect_to(request.form.get("redirect_to"), lang)
+    session.pop("username", None)
+    clear_auth_feedback()
+    return redirect(redirect_to)
+
+
 @app.route("/toggle-collection", methods=["POST"])
 def toggle_collection():
     paper_url = (request.form.get("paper_url") or "").strip()
@@ -1390,7 +1673,11 @@ def generate_summary():
         return redirect(redirect_url)
 
     if not is_summary_generating(source_path):
-        Thread(target=run_summary_generation, args=(source_path,), daemon=True).start()
+        Thread(
+            target=run_summary_generation,
+            args=(source_path, get_current_username()),
+            daemon=True,
+        ).start()
 
     return redirect(redirect_url)
 
@@ -1427,7 +1714,11 @@ def generate_analysis():
         return redirect(redirect_url)
 
     if not is_analysis_generating(paper_url):
-        Thread(target=run_analysis_generation, args=(source_path, paper_url), daemon=True).start()
+        Thread(
+            target=run_analysis_generation,
+            args=(source_path, paper_url, get_current_username()),
+            daemon=True,
+        ).start()
 
     return redirect(redirect_url)
 

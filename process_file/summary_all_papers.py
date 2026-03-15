@@ -24,6 +24,14 @@ def resolve_project_path(path: str) -> Path:
     return resolve_path(path)
 
 
+def parse_areas(area_value):
+    if isinstance(area_value, list):
+        areas = [str(item).strip() for item in area_value if str(item).strip()]
+    else:
+        areas = [item.strip() for item in str(area_value or "RO").split(",") if item.strip()]
+    return areas or ["RO"]
+
+
 def get_model():
     from model.api import load_model
     return load_model()
@@ -55,10 +63,20 @@ def find_latest_papers_path(path=None):
         return selected_path
 
     save_path = resolve_project_path(get_config_value("file.save_path", "file"))
+    areas = parse_areas(get_config_value("file.area", "RO"))
     today = datetime.now()
     today_dir = save_path / str(today.year) / str(today.month) / str(today.day)
 
-    preferred_today = [today_dir / "papers_zh.json", today_dir / "papers.json"]
+    preferred_today = []
+    for area_name in areas:
+        preferred_today.extend([
+            today_dir / area_name / "papers_zh.json",
+            today_dir / area_name / "papers.json",
+        ])
+    preferred_today.extend([
+        today_dir / "papers_zh.json",
+        today_dir / "papers.json",
+    ])
     for candidate in preferred_today:
         if candidate.exists():
             return candidate

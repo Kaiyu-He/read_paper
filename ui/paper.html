@@ -126,6 +126,20 @@
             background: var(--accent);
         }
 
+        .header-nav-user {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 4.6rem;
+            padding: 0.78rem 1.1rem 0.62rem;
+            color: var(--accent);
+            font-size: 0.88rem;
+            font-weight: 700;
+            line-height: 1.1;
+            white-space: nowrap;
+        }
+
+
         .balance-chip {
             position: absolute;
             top: 0;
@@ -740,6 +754,10 @@
             <nav class="header-nav" aria-label="main navigation">
                 <a class="header-nav-link" href="{{ papers_data.home_href }}">主页</a>
                 <a class="header-nav-link" href="{{ papers_data.favorites_href }}">收藏</a>
+                <a class="header-nav-link" href="{{ papers_data.settings_href }}">设置</a>
+                {% if papers_data.is_authenticated %}
+                <span class="header-nav-user">你好，{{ papers_data.current_username }}</span>
+                {% endif %}
             </nav>
         </div>
         <header>
@@ -885,6 +903,7 @@
     </div>
     <script>
         (function () {
+
             const balanceNode = document.querySelector("[data-api-balance]");
             if (balanceNode) {
                 fetch("/api-balance")
