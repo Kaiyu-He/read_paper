@@ -1,15 +1,12 @@
 model:
   api_key: sk-5347472e443346f0a92c62483f0b32bc
   model: deepseek-chat
-
 file:
-  save_path: /Users/hekaiyu/Desktop/project/python/read_paper/file
+  save_path: /home/ubuntu/paper
   area: cs.RO
-
 ui:
-  port: 1057
+  port: 10571
   host: 0.0.0.0
-  debug: True
-
+  debug: true
 summary:
   user_question: 灵巧手和夹爪领域有什么样的发展（在数据采集、数据处理和模型等方面）

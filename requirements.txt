@@ -7,3 +7,4 @@ openai
 flask
 pyyaml
 python-markdown
+pdfplumber
