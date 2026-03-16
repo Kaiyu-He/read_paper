@@ -46,7 +46,7 @@ def download_papers_for_area(save_path, area):
     bsObj = BeautifulSoup(html, "lxml")
     
     today = datetime.now()
-    dateline = bsObj.find("h3")
+    dateline = bsObj.find_all("h3")[0]
     public_date = dateline.get_text().split(' ')[-3]
 
     year = today.year
@@ -81,7 +81,6 @@ def download_papers_for_area(save_path, area):
 
             papers['total_num'] = len(papers['papers'])
             papers['total_size'] = human_readable_size(total_size)
-            print(os.path.join(path, 'papers.json'))
             with open(os.path.join(path, 'papers.json'), 'w') as f:
                 json.dump(papers, f, indent=4)
 

@@ -4,12 +4,13 @@
 """
 import html
 import json
+import os
 import re
 from calendar import monthrange
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from threading import Lock, Thread
-from time import time
+from time import sleep, time
 from typing import Optional
 from urllib.parse import urlencode, urlparse
 
@@ -59,6 +60,8 @@ SUMMARY_JOB_LOCK = Lock()
 SUMMARY_JOB_STATUS = {}
 ANALYSIS_JOB_LOCK = Lock()
 ANALYSIS_JOB_STATUS = {}
+AUTO_UPDATE_SCHEDULER_LOCK = Lock()
+AUTO_UPDATE_SCHEDULER_STARTED = False
 
 
 def get_file_dir():
@@ -453,6 +456,24 @@ def resolve_non_empty_papers_path(day_dir: Path):
     return None
 
 
+def get_update_schedule_time():
+    """读取每日自动更新的时间，格式为 HH:MM，默认 10:00。"""
+    raw = str(get("file.update_time", "10:00") or "").strip()
+    match = re.match(r"^([01]?\d|2[0-3]):([0-5]\d)$", raw)
+    if not match:
+        return 10, 0, "10:00"
+    hour = int(match.group(1))
+    minute = int(match.group(2))
+    return hour, minute, f"{hour:02d}:{minute:02d}"
+
+
+def get_next_schedule_run(now: datetime, hour: int, minute: int):
+    next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if next_run <= now:
+        next_run += timedelta(days=1)
+    return next_run
+
+
 def run_today_papers_ready(now: datetime, today_label: str, username: str):
     global AUTO_LOAD_DONE_DATE, AUTO_LOAD_RUNNING_DATE
 
@@ -470,7 +491,7 @@ def run_today_papers_ready(now: datetime, today_label: str, username: str):
 
         try:
             if not any(papers_path.exists() for _, papers_path, _ in area_paths):
-                print(f"{today_label} 12点后检测到今日论文未载入，开始自动抓取")
+                print(f"{today_label} 检测到今日论文未载入，开始自动抓取")
                 download_result = download_papers_today()
                 invalidate_available_dates_cache()
                 if download_result == -1:
@@ -501,12 +522,46 @@ def run_today_papers_ready(now: datetime, today_label: str, username: str):
                     AUTO_LOAD_RUNNING_DATE = None
 
 
+def run_daily_update_scheduler(username: str):
+    """后台循环：按配置时间每天执行一次自动抓取与翻译。"""
+    while True:
+        now = datetime.now()
+        hour, minute, time_label = get_update_schedule_time()
+        next_run = get_next_schedule_run(now, hour, minute)
+        wait_seconds = max((next_run - now).total_seconds(), 1.0)
+        print(
+            f"自动更新调度：每天 {time_label} 执行，下次运行时间 {next_run.strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+        sleep(wait_seconds)
+
+        run_now = datetime.now()
+        today_label = run_now.strftime("%Y-%m-%d")
+        print(f"{today_label} 到达自动更新时间，开始执行每日更新任务")
+        run_today_papers_ready(run_now, today_label, username)
+
+
+def start_daily_update_scheduler():
+    global AUTO_UPDATE_SCHEDULER_STARTED
+
+    with AUTO_UPDATE_SCHEDULER_LOCK:
+        if AUTO_UPDATE_SCHEDULER_STARTED:
+            return
+        AUTO_UPDATE_SCHEDULER_STARTED = True
+
+    Thread(
+        target=run_daily_update_scheduler,
+        args=(get_current_username(),),
+        daemon=True,
+    ).start()
+
+
 def ensure_today_papers_ready(now=None):
-    """12 点后如果今日论文未加载，则后台抓取并翻译。"""
+    """到达配置时间后，如果今日论文未加载，则后台补跑抓取与翻译。"""
     global AUTO_LOAD_DONE_DATE, AUTO_LOAD_RUNNING_DATE
 
     now = now or datetime.now()
-    if now.hour < 12:
+    schedule_hour, schedule_minute, _ = get_update_schedule_time()
+    if (now.hour, now.minute) < (schedule_hour, schedule_minute):
         return
 
     today_label = now.strftime("%Y-%m-%d")
@@ -1727,6 +1782,8 @@ if __name__ == "__main__":
     port = int(get("ui.port") or 5715)
     host = get("ui.host") or "0.0.0.0"
     debug = get("ui.debug", True)
+    if (not debug) or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        start_daily_update_scheduler()
     print(f"论文预览服务启动: http://{host}:{port}")
     print(f"本机访问: http://127.0.0.1:{port}")
     print(f"局域网访问: http://<本机IP>:{port}")

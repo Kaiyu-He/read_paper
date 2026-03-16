@@ -4,6 +4,11 @@ model:
 file:
   save_path: /home/ubuntu/paper
   area: cs.RO
+<<<<<<< HEAD
+=======
+  update_time: 10:00
+
+>>>>>>> 4b4d126 (可修改更新日期)
 ui:
   port: 10571
   host: 0.0.0.0
