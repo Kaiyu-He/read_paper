@@ -510,6 +510,13 @@
                     </div>
                 </div>
                 <div class="settings-form-row">
+                    <label class="settings-label" for="file_update_time">自动更新时间</label>
+                    <div>
+                        <input id="file_update_time" class="settings-input" type="time" name="file_update_time" value="{{ papers_data.settings_form.file_update_time }}" required>
+                        <div class="settings-help">每天到这个时间自动抓取并翻译当天论文，格式 HH:MM。</div>
+                    </div>
+                </div>
+                <div class="settings-form-row">
                     <label class="settings-label" for="ui_debug">调试模式</label>
                     <select id="ui_debug" class="settings-select" name="ui_debug">
                         <option value="true" {% if papers_data.settings_form.ui_debug %}selected{% endif %}>开启</option>

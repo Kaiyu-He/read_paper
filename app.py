@@ -420,12 +420,17 @@ def build_settings_data(lang="zh"):
             "label": "调试模式",
             "value": "开启" if get("ui.debug", True) else "关闭",
         },
+        {
+            "label": "自动更新时间",
+            "value": get_update_schedule_time()[2],
+        },
     ]
     settings_form = {
         "model_api_key": "",
         "model_model": current_model,
         "summary_user_question": str(summary_cfg.get("user_question", "") or ""),
         "file_area": str(file_cfg.get("area", "") or ""),
+        "file_update_time": str(file_cfg.get("update_time", "10:00") or "10:00"),
         "ui_debug": bool(ui_cfg.get("debug", True)),
     }
     return {
@@ -1536,12 +1541,14 @@ def save_settings():
     model_name = (request.form.get("model_model") or "").strip()
     summary_question = (request.form.get("summary_user_question") or "").strip()
     file_area = (request.form.get("file_area") or "").strip()
+    file_update_time = (request.form.get("file_update_time") or "").strip()
     ui_debug_raw = (request.form.get("ui_debug") or "").strip().lower()
     draft_form = {
         "model_api_key": api_key_input,
         "model_model": model_name,
         "summary_user_question": summary_question,
         "file_area": file_area,
+        "file_update_time": file_update_time,
         "ui_debug": ui_debug_raw in {"1", "true", "yes", "on"},
     }
 
@@ -1557,6 +1564,14 @@ def save_settings():
         page_data["settings_error"] = "主题目录不能为空"
         return render_template("settings.html", papers_data=page_data)
 
+    update_time_match = re.match(r"^([01]?\d|2[0-3]):([0-5]\d)$", file_update_time)
+    if not update_time_match:
+        page_data = build_settings_data(lang)
+        page_data["settings_form"] = draft_form
+        page_data["settings_error"] = "更新时间格式必须为 HH:MM，例如 10:00"
+        return render_template("settings.html", papers_data=page_data)
+
+    normalized_update_time = f"{int(update_time_match.group(1)):02d}:{int(update_time_match.group(2)):02d}"
     ui_debug = ui_debug_raw in {"1", "true", "yes", "on"}
     final_api_key = api_key_input or existing_api_key
 
@@ -1568,6 +1583,7 @@ def save_settings():
                 "model.model": model_name,
                 "summary.user_question": summary_question,
                 "file.area": file_area,
+                "file.update_time": normalized_update_time,
                 "ui.debug": ui_debug,
             },
         )
