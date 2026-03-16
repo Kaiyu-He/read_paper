@@ -7,9 +7,11 @@ import hashlib
 import json
 import re
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -94,15 +96,59 @@ def find_paper(source_path: Path, paper_url: str):
     return None
 
 
+def normalize_pdf_url(paper_url: str) -> str:
+    url = (paper_url or "").strip()
+    if not url:
+        return url
+
+    parsed = urlparse(url)
+    host = (parsed.netloc or "").lower()
+    path = parsed.path or ""
+
+    if "arxiv.org" in host:
+        match = re.search(r"/abs/([^/?#]+)", path)
+        if match:
+            paper_id = match.group(1).strip()
+            return f"https://arxiv.org/pdf/{paper_id}.pdf"
+        match = re.search(r"/pdf/([^/?#]+)", path)
+        if match:
+            paper_id = match.group(1).strip()
+            if not paper_id.endswith(".pdf"):
+                paper_id = f"{paper_id}.pdf"
+            return f"https://arxiv.org/pdf/{paper_id}"
+    return url
+
+
 def download_pdf(paper_url: str, target_path: Path) -> Path:
     target_path.parent.mkdir(parents=True, exist_ok=True)
     if target_path.exists() and target_path.stat().st_size > 0:
         return target_path
 
-    request = Request(paper_url, headers={"User-Agent": "read-paper-analysis/1.0"})
-    with urlopen(request, timeout=90) as response:
-        target_path.write_bytes(response.read())
-    return target_path
+    normalized_url = normalize_pdf_url(paper_url)
+    last_error = None
+    for attempt in range(1, 4):
+        try:
+            request = Request(
+                normalized_url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X) AppleWebKit/537.36",
+                    "Accept": "application/pdf,*/*;q=0.8",
+                    "Connection": "close",
+                },
+            )
+            with urlopen(request, timeout=120) as response:
+                data = response.read()
+            if not data:
+                raise RuntimeError("下载到空 PDF 内容")
+            target_path.write_bytes(data)
+            return target_path
+        except (HTTPError, URLError, TimeoutError, ConnectionResetError, RuntimeError) as exc:
+            last_error = exc
+            if attempt < 3:
+                time.sleep(1.5 * attempt)
+            continue
+
+    raise RuntimeError(f"PDF 下载失败: {last_error}")
 
 
 def extract_pdf_text(pdf_path: Path) -> str:
