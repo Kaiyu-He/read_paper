@@ -119,36 +119,79 @@ def normalize_pdf_url(paper_url: str) -> str:
     return url
 
 
+def build_pdf_candidates(paper_url: str):
+    raw_url = (paper_url or "").strip()
+    normalized = normalize_pdf_url(raw_url)
+    candidates = []
+
+    def add(url: str):
+        url = (url or "").strip()
+        if not url:
+            return
+        if url not in candidates:
+            candidates.append(url)
+
+    add(raw_url)
+    add(normalized)
+
+    parsed = urlparse(normalized)
+    host = (parsed.netloc or "").lower()
+    path = parsed.path or ""
+    if "arxiv.org" in host:
+        match = re.search(r"/pdf/([^/?#]+)", path) or re.search(r"/abs/([^/?#]+)", path)
+        if match:
+            paper_id = match.group(1).strip()
+            base_id = re.sub(r"\.pdf$", "", paper_id)
+            base_id_no_version = re.sub(r"v\d+$", "", base_id)
+
+            # 常见可达形式
+            add(f"https://arxiv.org/pdf/{base_id}.pdf")
+            add(f"https://arxiv.org/pdf/{base_id_no_version}.pdf")
+            add(f"https://arxiv.org/abs/{base_id}")
+            add(f"https://arxiv.org/abs/{base_id_no_version}")
+
+            # 若缺少版本号，尝试回退版本
+            if base_id == base_id_no_version:
+                for version in range(1, 6):
+                    add(f"https://arxiv.org/pdf/{base_id_no_version}v{version}.pdf")
+                    add(f"https://arxiv.org/abs/{base_id_no_version}v{version}")
+
+    return candidates
+
+
 def download_pdf(paper_url: str, target_path: Path) -> Path:
     target_path.parent.mkdir(parents=True, exist_ok=True)
     if target_path.exists() and target_path.stat().st_size > 0:
         return target_path
 
-    normalized_url = normalize_pdf_url(paper_url)
     last_error = None
-    for attempt in range(1, 4):
-        try:
-            request = Request(
-                normalized_url,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X) AppleWebKit/537.36",
-                    "Accept": "application/pdf,*/*;q=0.8",
-                    "Connection": "close",
-                },
-            )
-            with urlopen(request, timeout=120) as response:
-                data = response.read()
-            if not data:
-                raise RuntimeError("下载到空 PDF 内容")
-            target_path.write_bytes(data)
-            return target_path
-        except (HTTPError, URLError, TimeoutError, ConnectionResetError, RuntimeError) as exc:
-            last_error = exc
-            if attempt < 3:
-                time.sleep(1.5 * attempt)
-            continue
+    attempted = []
+    for candidate_url in build_pdf_candidates(paper_url):
+        for attempt in range(1, 4):
+            attempted.append(candidate_url)
+            try:
+                request = Request(
+                    candidate_url,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X) AppleWebKit/537.36",
+                        "Accept": "application/pdf,*/*;q=0.8",
+                        "Connection": "close",
+                    },
+                )
+                with urlopen(request, timeout=120) as response:
+                    data = response.read()
+                if not data:
+                    raise RuntimeError("下载到空 PDF 内容")
+                target_path.write_bytes(data)
+                return target_path
+            except (HTTPError, URLError, TimeoutError, ConnectionResetError, RuntimeError) as exc:
+                last_error = exc
+                if attempt < 3:
+                    time.sleep(1.2 * attempt)
+                continue
 
-    raise RuntimeError(f"PDF 下载失败: {last_error}")
+    tried = ", ".join(dict.fromkeys(attempted))
+    raise RuntimeError(f"PDF 下载失败: {last_error}; 已尝试: {tried}")
 
 
 def extract_pdf_text(pdf_path: Path) -> str:
