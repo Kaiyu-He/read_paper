@@ -4,14 +4,10 @@ model:
 file:
   save_path: /home/ubuntu/paper
   area: cs.RO
-<<<<<<< HEAD
-=======
-  update_time: 10:00
-
->>>>>>> 4b4d126 (可修改更新日期)
+  update_time: '13:00'
 ui:
   port: 10571
   host: 0.0.0.0
-  debug: true
+  debug: False
 summary:
   user_question: 灵巧手和夹爪领域有什么样的发展（在数据采集、数据处理和模型等方面）

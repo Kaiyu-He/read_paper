@@ -44,7 +44,8 @@ def download_papers_for_area(save_path, area):
 
     html = urlopen(f"https://arxiv.org/list/{area}/new")
     bsObj = BeautifulSoup(html, "lxml")
-    
+    bsObj = str(bsObj).split("Replacement submissions")[0]
+    bsObj = BeautifulSoup(bsObj, "lxml")
     today = datetime.now()
     dateline = bsObj.find_all("h3")[0]
     public_date = dateline.get_text().split(' ')[-3]
@@ -84,7 +85,7 @@ def download_papers_for_area(save_path, area):
             with open(os.path.join(path, 'papers.json'), 'w') as f:
                 json.dump(papers, f, indent=4)
 
-    print(f"{year}年{month}月{date}日发布的论文已载入完成")
+    print(f"{year}年{month}月{date}日发布的论文已载入完成, {papers['total_num']}篇")
     return 0
 
 
@@ -101,5 +102,63 @@ def download_papers_today(
         status_list.append(download_papers_for_area(save_path, area_name))
     return 0 if any(status == 0 for status in status_list) else -1
 
+def download_papers_week(
+    save_path: None,
+    area: None
+):
+    save_path = save_path or str(resolve_path(get("file.save_path", "file")))
+    papers = {
+        "total_num": 0,
+        "papers": []
+    }
+    bsObj = ""
+    for i in range(4): 
+        html = urlopen(f"https://arxiv.org/list/cs.RO/recent?skip={i * 50}&show=50")
+        bsObj += str(BeautifulSoup(html, "lxml"))
+        
+    bsObj = BeautifulSoup(bsObj, "lxml")
+    today = datetime.now()
+    dateline = bsObj.find_all("h3")
+    print(dateline)
+    raise
+   
+
+    year = today.year
+    month = today.month
+    date = today.day
+    path = os.path.join(save_path, str(year), str(month), str(date), area)
+    total_size = 0
+    os.makedirs(path, exist_ok=True)
+
+    if str(date) != public_date:
+        print(f"今日为{str(date)}日，arxiv 最新发布日期为 {public_date}日，不更新")
+        with open(os.path.join(path, 'papers.json'), 'w') as f:
+                json.dump(papers, f, indent=4)
+        with open(os.path.join(path, 'papers_zh.json'), 'w') as f:
+                json.dump(papers, f, indent=4)
+        return -1
+
+    titleList = bsObj.findAll("div", {"class":"list-title mathjax"})
+    for title in titleList:
+        abstract = title.parent.find("p", {"class":"mathjax"})
+        if abstract is not None:
+            
+            download = title.parent.parent.previous_sibling.previous_sibling.find("a", {"title":"Download PDF"}).attrs['href']
+            fileUrl = 'https://arxiv.org' + download
+            papers['papers'].append(
+                {
+                    "title": title.get_text().strip().split("Title:\n          ")[1],
+                    "abstract": abstract.get_text().strip(),
+                    "url": fileUrl,
+                }
+            )
+
+            papers['total_num'] = len(papers['papers'])
+            papers['total_size'] = human_readable_size(total_size)
+            with open(os.path.join(path, 'papers.json'), 'w') as f:
+                json.dump(papers, f, indent=4)
+
+    print(f"{year}年{month}月{date}日发布的论文已载入完成")
+    return 0
 if __name__ == "__main__":
-    download_papers_today()  # 从 config/hekaiyu.yaml 读取 save_path、area
+    download_papers_week(".","cs.RO")  # 从 config/hekaiyu.yaml 读取 save_path、area
