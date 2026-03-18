@@ -62,6 +62,11 @@ ANALYSIS_JOB_LOCK = Lock()
 ANALYSIS_JOB_STATUS = {}
 AUTO_UPDATE_SCHEDULER_LOCK = Lock()
 AUTO_UPDATE_SCHEDULER_STARTED = False
+SETTINGS_TASK_LOCK = Lock()
+SETTINGS_TASK_STATUS = {
+    "update_papers": False,
+    "translate_papers": False,
+}
 
 
 def get_file_dir():
@@ -525,6 +530,54 @@ def run_today_papers_ready(now: datetime, today_label: str, username: str):
             with AUTO_LOAD_LOCK:
                 if AUTO_LOAD_RUNNING_DATE == today_label:
                     AUTO_LOAD_RUNNING_DATE = None
+
+
+def is_settings_task_running(task_name: str) -> bool:
+    with SETTINGS_TASK_LOCK:
+        return bool(SETTINGS_TASK_STATUS.get(task_name))
+
+
+def set_settings_task_running(task_name: str, running: bool):
+    with SETTINGS_TASK_LOCK:
+        SETTINGS_TASK_STATUS[task_name] = running
+
+
+def run_manual_update_papers(username: str):
+    set_settings_task_running("update_papers", True)
+    try:
+        with use_active_username(username):
+            print("设置页触发：开始更新今日论文列表")
+            download_papers_today()
+            invalidate_available_dates_cache()
+            print("设置页触发：今日论文列表更新完成")
+    except Exception as exc:
+        print(f"设置页触发：更新论文列表失败: {exc}")
+    finally:
+        set_settings_task_running("update_papers", False)
+
+
+def run_manual_translate_papers(username: str):
+    set_settings_task_running("translate_papers", True)
+    try:
+        with use_active_username(username):
+            now = datetime.now()
+            today_dir = get_today_dir(now)
+            translated_any = False
+            for area_name in get_area_names():
+                papers_path = get_area_dir(today_dir, area_name) / "papers.json"
+                if not papers_path.exists():
+                    continue
+                translated_any = True
+                print(f"设置页触发：开始翻译 {area_name} 今日论文")
+                translate_papers(str(papers_path))
+            if translated_any:
+                print("设置页触发：今日论文翻译完成")
+            else:
+                print("设置页触发：未找到今日论文列表，跳过翻译")
+    except Exception as exc:
+        print(f"设置页触发：翻译论文失败: {exc}")
+    finally:
+        set_settings_task_running("translate_papers", False)
 
 
 def run_daily_update_scheduler(username: str):
@@ -1595,6 +1648,46 @@ def save_settings():
 
     page_data = build_settings_data(lang)
     page_data["settings_notice"] = "设置已保存"
+    return render_template("settings.html", papers_data=page_data)
+
+
+@app.route("/settings/update-papers", methods=["POST"])
+def settings_update_papers():
+    lang = request.form.get("lang", "zh")
+    if lang not in {"zh", "en"}:
+        lang = "zh"
+
+    page_data = build_settings_data(lang)
+    if is_settings_task_running("update_papers"):
+        page_data["settings_notice"] = "论文列表更新任务已在运行，请稍候刷新查看结果。"
+        return render_template("settings.html", papers_data=page_data)
+
+    Thread(
+        target=run_manual_update_papers,
+        args=(get_current_username(),),
+        daemon=True,
+    ).start()
+    page_data["settings_notice"] = "已开始更新论文列表，任务在后台执行。"
+    return render_template("settings.html", papers_data=page_data)
+
+
+@app.route("/settings/translate-papers", methods=["POST"])
+def settings_translate_papers():
+    lang = request.form.get("lang", "zh")
+    if lang not in {"zh", "en"}:
+        lang = "zh"
+
+    page_data = build_settings_data(lang)
+    if is_settings_task_running("translate_papers"):
+        page_data["settings_notice"] = "翻译任务已在运行，请稍候刷新查看结果。"
+        return render_template("settings.html", papers_data=page_data)
+
+    Thread(
+        target=run_manual_translate_papers,
+        args=(get_current_username(),),
+        daemon=True,
+    ).start()
+    page_data["settings_notice"] = "已开始翻译今日论文，任务在后台执行。"
     return render_template("settings.html", papers_data=page_data)
 
 

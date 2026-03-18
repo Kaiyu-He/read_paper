@@ -370,6 +370,14 @@
             justify-content: flex-end;
         }
 
+        .settings-quick-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.65rem;
+            margin-top: 0.25rem;
+            margin-bottom: 1rem;
+        }
+
         .settings-submit {
             display: inline-flex;
             align-items: center;
@@ -388,6 +396,26 @@
         .settings-submit:hover {
             background: #0550ae;
             border-color: #0550ae;
+        }
+
+        .settings-secondary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.68rem 1rem;
+            border: 1px solid #d6e6ff;
+            border-radius: 10px;
+            background: #fff;
+            color: #0b4ea2;
+            font-size: 0.86rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .settings-secondary:hover {
+            background: #eef5ff;
+            border-color: #b6d3ff;
         }
 
         .settings-help {
@@ -450,6 +478,15 @@
 
             .settings-form-row {
                 grid-template-columns: 1fr;
+            }
+
+            .settings-quick-actions {
+                justify-content: stretch;
+                flex-wrap: wrap;
+            }
+
+            .settings-quick-actions form {
+                flex: 1 1 100%;
             }
         }
     </style>
@@ -527,6 +564,16 @@
                     <button class="settings-submit" type="submit">保存设置</button>
                 </div>
             </form>
+            <div class="settings-quick-actions">
+                <form method="post" action="/settings/update-papers">
+                    <input type="hidden" name="lang" value="{{ papers_data.lang }}">
+                    <button class="settings-secondary" type="submit">更新论文列表</button>
+                </form>
+                <form method="post" action="/settings/translate-papers">
+                    <input type="hidden" name="lang" value="{{ papers_data.lang }}">
+                    <button class="settings-secondary" type="submit">翻译今日论文</button>
+                </form>
+            </div>
             <div class="settings-grid">
                 {% for item in papers_data.settings_items %}
                 <div class="settings-item">
