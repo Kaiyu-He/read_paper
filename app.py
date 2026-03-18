@@ -7,7 +7,7 @@ import json
 import os
 import re
 from calendar import monthrange
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from threading import Lock, Thread
 from time import sleep, time
@@ -477,13 +477,6 @@ def get_update_schedule_time():
     return hour, minute, f"{hour:02d}:{minute:02d}"
 
 
-def get_next_schedule_run(now: datetime, hour: int, minute: int):
-    next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-    if next_run <= now:
-        next_run += timedelta(days=1)
-    return next_run
-
-
 def run_today_papers_ready(now: datetime, today_label: str, username: str):
     global AUTO_LOAD_DONE_DATE, AUTO_LOAD_RUNNING_DATE
 
@@ -581,21 +574,15 @@ def run_manual_translate_papers(username: str):
 
 
 def run_daily_update_scheduler(username: str):
-    """后台循环：按配置时间每天执行一次自动抓取与翻译。"""
+    """后台循环：定期检查是否到达配置时间，到点后触发每日更新。"""
+    print("自动更新调度器已启动，每 30 秒检查一次是否到达设定时间。")
     while True:
-        now = datetime.now()
-        hour, minute, time_label = get_update_schedule_time()
-        next_run = get_next_schedule_run(now, hour, minute)
-        wait_seconds = max((next_run - now).total_seconds(), 1.0)
-        print(
-            f"自动更新调度：每天 {time_label} 执行，下次运行时间 {next_run.strftime('%Y-%m-%d %H:%M:%S')}"
-        )
-        sleep(wait_seconds)
-
-        run_now = datetime.now()
-        today_label = run_now.strftime("%Y-%m-%d")
-        print(f"{today_label} 到达自动更新时间，开始执行每日更新任务")
-        run_today_papers_ready(run_now, today_label, username)
+        try:
+            with use_active_username(username):
+                ensure_today_papers_ready(datetime.now())
+        except Exception as exc:
+            print(f"自动更新调度器检查失败: {exc}")
+        sleep(30)
 
 
 def start_daily_update_scheduler():
