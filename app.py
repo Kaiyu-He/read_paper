@@ -41,9 +41,7 @@ app = Flask(__name__, template_folder="ui")
 app.secret_key = get("ui.secret_key", "read-paper-dev-secret", username="hekaiyu")
 AUTO_UPDATE_TASK_LOCK = Lock()
 AUTO_UPDATE_RUNNING = False
-AUTO_UPDATE_LAST_FETCH_AT = 0.0
-AUTO_TRANSLATE_DONE_DATE = None
-AUTO_FETCH_INTERVAL_SECONDS = 600
+AUTO_UPDATE_CHECK_INTERVAL_SECONDS = 3600
 BALANCE_CACHE_LOCK = Lock()
 BALANCE_CACHE = {"value": None, "updated_at": 0.0}
 PAPERS_CACHE_LOCK = Lock()
@@ -480,7 +478,7 @@ def get_update_schedule_time():
 
 
 def run_today_papers_ready(now: datetime, today_label: str, username: str):
-    global AUTO_UPDATE_RUNNING, AUTO_UPDATE_LAST_FETCH_AT, AUTO_TRANSLATE_DONE_DATE
+    global AUTO_UPDATE_RUNNING
 
     with use_active_username(username):
         today_dir = get_today_dir(now)
@@ -495,17 +493,17 @@ def run_today_papers_ready(now: datetime, today_label: str, username: str):
         ]
 
         try:
-            print(f"{today_label} 自动任务：开始拉取论文列表")
-            download_papers_today()
-            invalidate_available_dates_cache()
-
-            if AUTO_TRANSLATE_DONE_DATE == today_label:
-                print(f"{today_label} 自动任务：今日翻译已执行，跳过翻译")
-                return
+            need_fetch = any(not has_papers_content(papers_path) for _, papers_path, _ in area_paths)
+            if need_fetch:
+                print(f"{today_label} 自动任务：检测到今日论文未完整拉取，开始自动拉取")
+                download_papers_today()
+                invalidate_available_dates_cache()
+            else:
+                print(f"{today_label} 自动任务：今日论文已拉取，跳过拉取")
 
             translated_any = False
             for area_name, papers_path, translation_path in area_paths:
-                if not papers_path.exists():
+                if not has_papers_content(papers_path):
                     continue
                 pending_count = get_pending_translation_count(papers_path, translation_path)
                 if pending_count > 0:
@@ -513,8 +511,7 @@ def run_today_papers_ready(now: datetime, today_label: str, username: str):
                     print(f"{today_label} [{area_name}] 待翻译 {pending_count} 篇，开始自动翻译")
                     translate_papers(str(papers_path))
             if translated_any:
-                AUTO_TRANSLATE_DONE_DATE = today_label
-                print(f"{today_label} 自动任务：今日翻译完成，后续自动任务将只拉取不翻译")
+                print(f"{today_label} 自动任务：已完成待翻译论文补齐")
             else:
                 print(f"{today_label} 自动任务：无待翻译论文，跳过翻译")
         except Exception as exc:
@@ -522,7 +519,6 @@ def run_today_papers_ready(now: datetime, today_label: str, username: str):
         finally:
             with AUTO_UPDATE_TASK_LOCK:
                 AUTO_UPDATE_RUNNING = False
-                AUTO_UPDATE_LAST_FETCH_AT = time()
 
 
 def is_settings_task_running(task_name: str) -> bool:
@@ -550,15 +546,10 @@ def run_manual_update_papers(username: str):
 
 
 def run_manual_translate_papers(username: str):
-    global AUTO_TRANSLATE_DONE_DATE
     set_settings_task_running("translate_papers", True)
     try:
         with use_active_username(username):
             now = datetime.now()
-            today_label = now.strftime("%Y-%m-%d")
-            if AUTO_TRANSLATE_DONE_DATE == today_label:
-                print("设置页触发：今日翻译已执行过，跳过")
-                return
             today_dir = get_today_dir(now)
             translated_any = False
             for area_name in get_area_names():
@@ -569,7 +560,6 @@ def run_manual_translate_papers(username: str):
                 print(f"设置页触发：开始翻译 {area_name} 今日论文")
                 translate_papers(str(papers_path))
             if translated_any:
-                AUTO_TRANSLATE_DONE_DATE = today_label
                 print("设置页触发：今日论文翻译完成")
             else:
                 print("设置页触发：未找到今日论文列表，跳过翻译")
@@ -580,15 +570,15 @@ def run_manual_translate_papers(username: str):
 
 
 def run_daily_update_scheduler(username: str):
-    """后台循环：定期检查是否到达配置时间，到点后触发每日更新。"""
-    print("自动更新调度器已启动，每 30 秒检查一次是否到达设定时间。")
+    """后台循环：每小时检查一次今日论文状态，并按需补齐。"""
+    print("自动更新调度器已启动：每 1 小时检查一次今日拉取/翻译状态。")
     while True:
         try:
             with use_active_username(username):
                 ensure_today_papers_ready(datetime.now())
         except Exception as exc:
             print(f"自动更新调度器检查失败: {exc}")
-        sleep(30)
+        sleep(AUTO_UPDATE_CHECK_INTERVAL_SECONDS)
 
 
 def start_daily_update_scheduler():
@@ -607,19 +597,13 @@ def start_daily_update_scheduler():
 
 
 def ensure_today_papers_ready(now=None):
-    """到达配置时间后，每 10 分钟拉取一次；翻译同一天最多执行一次。"""
-    global AUTO_UPDATE_RUNNING, AUTO_UPDATE_LAST_FETCH_AT
+    """每次检查时按需补齐今日任务：缺拉取则拉取，缺翻译则翻译。"""
+    global AUTO_UPDATE_RUNNING
 
     now = now or datetime.now()
-    schedule_hour, schedule_minute, _ = get_update_schedule_time()
-    if (now.hour, now.minute) < (schedule_hour, schedule_minute):
-        return
 
     with AUTO_UPDATE_TASK_LOCK:
         if AUTO_UPDATE_RUNNING:
-            return
-        now_ts = time()
-        if AUTO_UPDATE_LAST_FETCH_AT and now_ts - AUTO_UPDATE_LAST_FETCH_AT < AUTO_FETCH_INTERVAL_SECONDS:
             return
         AUTO_UPDATE_RUNNING = True
 
