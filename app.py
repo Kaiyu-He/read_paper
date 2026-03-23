@@ -35,7 +35,11 @@ from model.api import load_model
 from process_file.analysis_paper import analysis_paper, get_analysis_output_path
 from process_file.load_papers import download_papers_today
 from process_file.summary_all_papers import summary_all_papers
-from process_file.translate_title_abstract import get_pending_translation_count, translate_papers
+from process_file.translate_title_abstract import (
+    get_pending_translation_count,
+    is_translation_complete,
+    translate_papers,
+)
 
 app = Flask(__name__, template_folder="ui")
 app.secret_key = get("ui.secret_key", "read-paper-dev-secret", username="hekaiyu")
@@ -505,6 +509,9 @@ def run_today_papers_ready(now: datetime, today_label: str, username: str):
             for area_name, papers_path, translation_path in area_paths:
                 if not has_papers_content(papers_path):
                     continue
+                if is_translation_complete(papers_path, translation_path):
+                    print(f"{today_label} [{area_name}] 今日论文已完成翻译，跳过翻译")
+                    continue
                 pending_count = get_pending_translation_count(papers_path, translation_path)
                 if pending_count > 0:
                     translated_any = True
@@ -554,7 +561,11 @@ def run_manual_translate_papers(username: str):
             translated_any = False
             for area_name in get_area_names():
                 papers_path = get_area_dir(today_dir, area_name) / "papers.json"
-                if not papers_path.exists():
+                translation_path = get_area_dir(today_dir, area_name) / "papers_zh.json"
+                if not has_papers_content(papers_path):
+                    continue
+                if is_translation_complete(papers_path, translation_path):
+                    print(f"设置页触发：{area_name} 今日论文已完成翻译，跳过翻译")
                     continue
                 translated_any = True
                 print(f"设置页触发：开始翻译 {area_name} 今日论文")

@@ -127,6 +127,17 @@ def get_pending_translation_count(source_path: Path, output_path: Path) -> int:
     data = merge_existing_translations(source_data, existing_data)
     return sum(1 for paper in data.get("papers", []) if is_missing_translation(paper))
 
+
+def is_translation_complete(source_path: Path, output_path: Path) -> bool:
+    """判断当前论文列表是否已经完成翻译。"""
+    if not source_path.exists() or not output_path.exists():
+        return False
+    source_data = load_json_file(source_path)
+    papers = source_data.get("papers", [])
+    if not isinstance(papers, list) or not papers:
+        return False
+    return get_pending_translation_count(source_path, output_path) == 0
+
 def parse_translation_response(text: str):
     """从模型响应中解析 JSON"""
     # 尝试提取 ```json ... ``` 块
@@ -182,7 +193,7 @@ def translate_papers(path=None):
     data = merge_existing_translations(source_data, existing_data)
 
     pending_count = sum(1 for paper in data.get("papers", []) if is_missing_translation(paper))
-    if pending_count == 0:
+    if pending_count <= 3:
         save_json_file(output_path, data)
         print(f"无需翻译，已全部完成: {output_path}")
         return output_path
