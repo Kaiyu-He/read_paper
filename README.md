@@ -35,9 +35,6 @@ read_paper/
 ```
 
 ## 安装
-
-建议使用 Python 3.10 及以上版本。
-
 ```bash
 pip install -r requirements.txt
 ```
