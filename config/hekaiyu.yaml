@@ -1,5 +1,5 @@
 model:
-  api_key: sk-5347472e443346f0a92c62483f0b32bc
+  api_key:  
   model: deepseek-chat
 file:
   save_path: /home/ubuntu/paper
